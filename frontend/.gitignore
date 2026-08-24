@@ -9,3 +9,5 @@ build/
 vite.config.*.timestamp-*
 *.tsbuildinfo
 *.log
+dist/
+dist-review/

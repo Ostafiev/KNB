@@ -10,10 +10,15 @@ export const IS_DEV = import.meta.env.DEV
 
 /**
  * Показывать ли DEV-бар навигации по экранам.
- * Можно принудительно выключить в dev: VITE_DEV_BAR=off
- * Принудительно включить в проде нельзя — это защита от утечки бара в релиз.
+ *
+ * По умолчанию: включён в `npm run dev`, выключен в `npm run build`.
+ * `VITE_DEV_BAR=off` — выключить в dev.
+ * `VITE_DEV_BAR=on`  — включить в собранной версии. Нужно ТОЛЬКО для
+ *   review-сборки, которую смотрит заказчик. В релизной сборке эту
+ *   переменную задавать нельзя.
  */
-export const SHOW_DEV_BAR = IS_DEV && import.meta.env.VITE_DEV_BAR !== 'off'
+export const SHOW_DEV_BAR =
+  import.meta.env.VITE_DEV_BAR === 'on' || (IS_DEV && import.meta.env.VITE_DEV_BAR !== 'off')
 
 /** Базовый URL API. TODO(backend): подставить реальный адрес из ЧАСТИ 3. */
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
