@@ -1,0 +1,158 @@
+import { useState } from 'react'
+import { ScreenHeader, PrimaryButton, GhostButton } from '../components/ui'
+import { BetSlider, RoundsPicker } from '../components/BetControls'
+import { useT } from '../i18n'
+import { ECONOMY } from '../config/economy'
+import { BOT_USERNAME } from '../config/env'
+import { shareLink } from '../telegram/sdk'
+import { hapticSelection } from '../telegram/sdk'
+import type { MatchConfig, MatchMode } from '../types'
+
+export function CreateScreen({
+  onCreate,
+  onBack,
+}: {
+  onCreate: (config: MatchConfig) => void
+  onBack: () => void
+}) {
+  const t = useT()
+  const [mode, setMode] = useState<MatchMode>('random')
+  const [bet, setBet] = useState(100)
+  const [rounds, setRounds] = useState(3)
+  const [condition, setCondition] = useState('')
+
+  /**
+   * ЧАСТЬ 2, п.11 — текстовые условия пари только в игре с друзьями.
+   * В случайном матчмейкинге поле скрыто, а само значение не попадает в конфиг.
+   */
+  const conditionAllowed = mode === 'friend'
+  const effectiveCondition = conditionAllowed ? condition.trim() : ''
+
+  const buildConfig = (): MatchConfig => ({
+    mode,
+    bet,
+    roundsTotal: rounds,
+    condition: effectiveCondition,
+    opponentName: '',
+    opponentAvatar: '👤',
+    opponentRating: 1000,
+  })
+
+  const invite = () => {
+    const url = `https://t.me/${BOT_USERNAME}?start=game_${Math.random().toString(36).slice(2, 10)}`
+    const text = [
+      `${t('common.bet')}: ${bet} 🪙`,
+      `${t('create.rounds')}: ${rounds}`,
+      effectiveCondition ? `${t('summary.condition')}: ${effectiveCondition}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+    shareLink(url, text)
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-4">
+      <ScreenHeader title={t('create.title')} onBack={onBack} />
+
+      <div className="flex flex-col gap-4 animate-fade-in pb-4">
+        {/* Режим матча */}
+        <div className="glass rounded-3xl p-4">
+          <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-3">
+            {t('create.mode')}
+          </div>
+          <div className="glass rounded-2xl p-1 flex gap-1">
+            {(['random', 'friend'] as MatchMode[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => {
+                  hapticSelection()
+                  setMode(key)
+                }}
+                className="tappable flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+                style={{
+                  background: mode === key ? 'var(--tg-blue)' : 'transparent',
+                  color: mode === key ? 'var(--tg-on-accent)' : 'var(--tg-subtext)',
+                }}
+              >
+                {key === 'random' ? t('create.mode.random') : t('create.mode.friend')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Ставка */}
+        <div className="glass rounded-3xl p-5">
+          <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-4">
+            {t('create.stake')}
+          </div>
+          <BetSlider value={bet} onChange={setBet} />
+        </div>
+
+        {/* Раунды */}
+        <div className="glass rounded-3xl p-5">
+          <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-3">
+            {t('create.rounds')}
+          </div>
+          <RoundsPicker
+            value={rounds}
+            onChange={setRounds}
+            max={mode === 'friend' ? ECONOMY.MAX_ROUNDS_INVITE : 5}
+          />
+        </div>
+
+        {/* Условие пари — только для режима «с другом» */}
+        {conditionAllowed ? (
+          <div className="glass rounded-3xl p-5 animate-slide-up">
+            <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-3">
+              {t('create.condition')}
+            </div>
+            <textarea
+              value={condition}
+              onChange={(e) => setCondition(e.target.value.slice(0, 200))}
+              placeholder={t('create.condition.placeholder')}
+              rows={3}
+              className="w-full bg-transparent text-tg-text text-sm outline-none resize-none placeholder:text-tg-subtext/50 leading-relaxed"
+            />
+            {condition.length > 0 && (
+              <div className="mt-2 text-tg-subtext text-xs text-right">{condition.length}/200</div>
+            )}
+          </div>
+        ) : (
+          <div className="glass rounded-2xl p-4 flex gap-3 items-start">
+            <span className="text-lg flex-shrink-0">🛡️</span>
+            <p className="text-tg-subtext text-xs leading-relaxed">{t('create.condition.randomNote')}</p>
+          </div>
+        )}
+
+        {/* Итог */}
+        <div className="glass rounded-2xl p-4 flex items-center gap-3 border border-tg-blue/20">
+          <span className="text-xl flex-shrink-0">📋</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-tg-subtext text-xs">{t('create.summary')}</div>
+            <div className="text-sm font-bold text-tg-text">
+              {bet} 🪙 · {rounds} {t('common.rounds')} ·{' '}
+              {effectiveCondition
+                ? `"${effectiveCondition.slice(0, 30)}${effectiveCondition.length > 30 ? '…' : ''}"`
+                : t('create.summary.noCondition')}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <PrimaryButton onClick={() => onCreate(buildConfig())}>
+            <span className="text-xl">⚔️</span>
+            <span>{t('create.submit')}</span>
+          </PrimaryButton>
+          {mode === 'friend' && (
+            <>
+              <GhostButton onClick={invite} tone="accent">
+                📨 {t('create.invite')}
+              </GhostButton>
+              <p className="text-center text-tg-subtext text-xs">{t('create.invite.note')}</p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

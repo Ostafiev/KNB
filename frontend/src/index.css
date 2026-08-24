@@ -1,0 +1,435 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+/*
+ * ─── Тема ────────────────────────────────────────────────────────────────────
+ * ЧАСТЬ 2, п.4 — полная альтернативная палитра для светлой темы.
+ *
+ * Все цвета объявлены как рантайм-переменные `--tg-*` на :root и переопределены
+ * для [data-theme='light']. Tailwind-токены ниже ссылаются на них через
+ * `@theme inline`, поэтому классы вида text-tg-text / bg-tg-blue / border-tg-border
+ * переключаются вместе с темой без перезагрузки.
+ *
+ * Атрибут data-theme выставляет ThemeProvider (src/theme/ThemeProvider.tsx).
+ */
+
+:root,
+:root[data-theme='dark'] {
+  /* Поверхности */
+  --tg-bg: #17212b;
+  --tg-bg2: #232e3c;
+  --tg-bg3: #1c2733;
+  --tg-glass: rgba(35, 46, 60, 0.6);
+  --tg-glass-strong: rgba(35, 46, 60, 0.85);
+  --tg-glass-shadow: none;
+  --tg-scrim: rgba(0, 0, 0, 0.6);
+
+  /* Акценты */
+  --tg-blue: #2a9fd6;
+  --tg-blue-dark: #1a7ab8;
+  --tg-blue-light: #64d2ff;
+  --tg-green: #2aca5c;
+  --tg-green-dark: #1a8c40;
+  --tg-red: #e55252;
+  --tg-yellow: #ffd60a;
+  --tg-on-accent: #ffffff;
+  /* Контрастный цвет текста поверх жёлтой заливки */
+  --tg-on-yellow: #17212b;
+
+  /* Текст */
+  --tg-text: #e8edf2;
+  --tg-subtext: #8a9ab5;
+
+  /* Служебные заливки: чипы, треки слайдеров, разделители */
+  --tg-border: rgba(255, 255, 255, 0.08);
+  --tg-border-strong: rgba(255, 255, 255, 0.12);
+  --tg-fill: rgba(255, 255, 255, 0.06);
+  --tg-fill-2: rgba(255, 255, 255, 0.1);
+  --tg-fill-3: rgba(255, 255, 255, 0.2);
+
+  /* Сила свечения — в тёмной теме полная */
+  --tg-glow-a: 0.4;
+  --tg-glow-b: 0.15;
+
+  /* Фоновая сетка */
+  --tg-mesh-1: rgba(42, 159, 214, 0.18);
+  --tg-mesh-2: rgba(42, 202, 92, 0.12);
+  --tg-mesh-3: rgba(100, 210, 255, 0.06);
+}
+
+:root[data-theme='light'] {
+  /* Поверхности */
+  --tg-bg: #eef2f7;
+  --tg-bg2: #ffffff;
+  --tg-bg3: #e2e8f1;
+  --tg-glass: rgba(255, 255, 255, 0.72);
+  --tg-glass-strong: rgba(255, 255, 255, 0.94);
+  --tg-glass-shadow: 0 1px 2px rgba(20, 40, 66, 0.05), 0 6px 20px rgba(20, 40, 66, 0.06);
+  --tg-scrim: rgba(18, 32, 48, 0.4);
+
+  /* Акценты затемнены — на светлом фоне неоновые оттенки нечитаемы */
+  --tg-blue: #1c82bd;
+  --tg-blue-dark: #14648f;
+  --tg-blue-light: #0e7bb5;
+  --tg-green: #17a34a;
+  --tg-green-dark: #10803a;
+  --tg-red: #d13a3a;
+  --tg-yellow: #b47500;
+  --tg-on-accent: #ffffff;
+  --tg-on-yellow: #ffffff;
+
+  /* Текст */
+  --tg-text: #16202b;
+  --tg-subtext: #5b6b82;
+
+  /* Служебные заливки */
+  --tg-border: rgba(20, 40, 66, 0.1);
+  --tg-border-strong: rgba(20, 40, 66, 0.16);
+  --tg-fill: rgba(20, 40, 66, 0.05);
+  --tg-fill-2: rgba(20, 40, 66, 0.09);
+  --tg-fill-3: rgba(20, 40, 66, 0.18);
+
+  /* Свечение приглушено, иначе на светлом читается как грязь */
+  --tg-glow-a: 0.18;
+  --tg-glow-b: 0.07;
+
+  /* Фоновая сетка */
+  --tg-mesh-1: rgba(42, 159, 214, 0.16);
+  --tg-mesh-2: rgba(42, 202, 92, 0.1);
+  --tg-mesh-3: rgba(100, 210, 255, 0.08);
+}
+
+@theme inline {
+  --color-tg-bg: var(--tg-bg);
+  --color-tg-bg2: var(--tg-bg2);
+  --color-tg-bg3: var(--tg-bg3);
+  --color-tg-surface: var(--tg-glass);
+  --color-tg-blue: var(--tg-blue);
+  --color-tg-blue-dark: var(--tg-blue-dark);
+  --color-tg-blue-light: var(--tg-blue-light);
+  --color-tg-green: var(--tg-green);
+  --color-tg-green-dark: var(--tg-green-dark);
+  --color-tg-red: var(--tg-red);
+  --color-tg-yellow: var(--tg-yellow);
+  --color-tg-text: var(--tg-text);
+  --color-tg-subtext: var(--tg-subtext);
+  --color-tg-border: var(--tg-border);
+  --color-tg-fill: var(--tg-fill);
+  --color-tg-fill-2: var(--tg-fill-2);
+  --color-tg-on-accent: var(--tg-on-accent);
+  --color-tg-on-yellow: var(--tg-on-yellow);
+  --font-outfit: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+:root {
+  font-family: 'Outfit', sans-serif;
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Hide scrollbar */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+/* Glassmorphism card base */
+.glass {
+  background: var(--tg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--tg-border);
+  box-shadow: var(--tg-glass-shadow);
+}
+
+.glass-strong {
+  background: var(--tg-glass-strong);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid var(--tg-border-strong);
+  box-shadow: var(--tg-glass-shadow);
+}
+
+/* Neon glow utilities — интенсивность зависит от темы */
+.glow-blue {
+  box-shadow: 0 0 20px rgb(42 159 214 / var(--tg-glow-a)), 0 0 60px rgb(42 159 214 / var(--tg-glow-b));
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgb(42 202 92 / var(--tg-glow-a)), 0 0 60px rgb(42 202 92 / var(--tg-glow-b));
+}
+
+.glow-red {
+  box-shadow: 0 0 20px rgb(229 82 82 / var(--tg-glow-a)), 0 0 60px rgb(229 82 82 / var(--tg-glow-b));
+}
+
+.glow-yellow {
+  box-shadow: 0 0 20px rgb(255 214 10 / var(--tg-glow-a)), 0 0 60px rgb(255 214 10 / var(--tg-glow-b));
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 20px rgb(100 210 255 / calc(var(--tg-glow-a) * 2));
+}
+
+.text-glow-green {
+  text-shadow: 0 0 20px rgb(42 202 92 / calc(var(--tg-glow-a) * 2));
+}
+
+.text-glow-red {
+  text-shadow: 0 0 20px rgb(229 82 82 / calc(var(--tg-glow-a) * 2));
+}
+
+/* Pulse animation */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  70% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@keyframes pulse-core {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes countdown {
+  0% { transform: scale(1.2); opacity: 1; }
+  80% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-15deg); }
+  40% { transform: rotate(15deg); }
+  60% { transform: rotate(-10deg); }
+  80% { transform: rotate(10deg); }
+}
+
+/*
+ * ЧАСТЬ 2, п.7 — финальная фаза тряски.
+ * Последние ~400 мс перед раскрытием фигур руки трясутся заметно резче
+ * и делают финальный замах, как в реальной игре на счёт «три».
+ */
+@keyframes shake-final {
+  0%   { transform: rotate(0deg) translateY(0) scale(1); }
+  12%  { transform: rotate(-26deg) translateY(-10px) scale(1.08); }
+  28%  { transform: rotate(24deg) translateY(4px) scale(1.05); }
+  44%  { transform: rotate(-24deg) translateY(-8px) scale(1.08); }
+  60%  { transform: rotate(22deg) translateY(4px) scale(1.05); }
+  76%  { transform: rotate(-18deg) translateY(-6px) scale(1.06); }
+  100% { transform: rotate(0deg) translateY(8px) scale(1.12); }
+}
+
+@keyframes collision-left {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(20px); }
+  65% { transform: translateX(-5px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes collision-right {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(-20px); }
+  65% { transform: translateX(5px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(24px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(24px) rotate(-360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes star-burst {
+  0% { transform: scale(0) rotate(0deg); opacity: 1; }
+  100% { transform: scale(2) rotate(180deg); opacity: 0; }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.animate-pulse-core {
+  animation: pulse-core 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-shake {
+  animation: shake 0.6s ease-in-out infinite;
+}
+
+.animate-shake-final {
+  animation: shake-final 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+}
+
+.animate-collision-left {
+  animation: collision-left 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-collision-right {
+  animation: collision-right 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+/* Tap highlight */
+.tappable {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.tappable:active {
+  transform: scale(0.95);
+  opacity: 0.85;
+}
+
+.tappable:disabled {
+  cursor: default;
+}
+
+/* Safe area */
+.safe-top { padding-top: max(env(safe-area-inset-top), 12px); }
+.safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 24px); }
+
+/* Mesh background */
+.mesh-bg {
+  background:
+    radial-gradient(ellipse at 20% 10%, var(--tg-mesh-1) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, var(--tg-mesh-2) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, var(--tg-mesh-3) 0%, transparent 70%),
+    var(--tg-bg);
+}
+
+/* Ползунок ставки — единый вид в обеих темах */
+.range-input {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 8px;
+  border-radius: 999px;
+  outline: none;
+}
+
+.range-input::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--tg-yellow);
+  border: 2px solid var(--tg-bg2);
+  cursor: pointer;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.25);
+}
+
+.range-input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--tg-yellow);
+  border: 2px solid var(--tg-bg2);
+  cursor: pointer;
+}
+
+/* Noise overlay */
+.noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
