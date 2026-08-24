@@ -10,6 +10,9 @@ import path from 'node:path'
 // чистая конфигурация, не зависящая от рантайма Figma Make.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // ASCII-выход: кириллица и эмодзи экранируются в \uXXXX. Нужно для инлайн-сборки,
+  // которая встраивается в чужую страницу и не может рассчитывать на свой <meta charset>.
+  esbuild: { charset: 'ascii' },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

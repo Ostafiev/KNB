@@ -17,8 +17,19 @@ function detectTheme(): Theme {
   } catch {
     /* localStorage может быть недоступен */
   }
-  // При первом входе наследуем тему клиента Telegram, иначе — тёмная.
-  return getTelegramColorScheme() ?? 'dark'
+  // При первом входе наследуем тему клиента Telegram…
+  const fromTelegram = getTelegramColorScheme()
+  if (fromTelegram) return fromTelegram
+
+  // …иначе тему хоста, если страница встроена куда-то, где она уже выставлена…
+  const fromHost = document.documentElement.getAttribute('data-theme')
+  if (fromHost === 'dark' || fromHost === 'light') return fromHost
+
+  // …иначе системную настройку пользователя.
+  if (typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches) {
+    return 'light'
+  }
+  return 'dark'
 }
 
 interface ThemeValue {
