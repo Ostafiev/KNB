@@ -1,0 +1,64 @@
+# Развёртывание в облаке Render одной кнопкой.
+#
+# Render читает этот файл и сам создаёт всё, что нужно: сервер из Dockerfile
+# и хранилище Redis. База данных берётся отдельно (Neon) — у Render бесплатная
+# база живёт только 30 дней, а у Neon бессрочно.
+#
+# При создании Render спросит три значения (они помечены sync: false):
+#   TELEGRAM_BOT_TOKEN  — токен из BotFather
+#   DATABASE_URL        — строка подключения из Neon
+#   VITE_BOT_USERNAME   — юзернейм бота без @, для ссылок-приглашений
+#
+# Секреты подписи сервер сгенерирует сам.
+
+services:
+  - type: web
+    name: knb
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: LOG_LEVEL
+        value: info
+
+      # Токен бота: им проверяется подпись данных игрока от Telegram.
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+
+      # Строка подключения к базе (Neon).
+      - key: DATABASE_URL
+        sync: false
+
+      # Юзернейм бота без @ — попадает в ссылки-приглашения.
+      # Render передаёт переменные в сборку образа, поэтому Mini App
+      # соберётся уже с правильным именем бота.
+      - key: VITE_BOT_USERNAME
+        sync: false
+
+      # Секреты подписи сессий. Render сгенерирует по 44 случайных символа.
+      - key: AUTH_TOKEN_SECRET
+        generateValue: true
+
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
+
+      # Redis создаётся ниже, адрес подставится автоматически.
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: knb-cache
+          property: connectionString
+
+  - type: keyvalue
+    name: knb-cache
+    plan: free
+    region: frankfurt
+    # Пустой список — принимает подключения только изнутри Render.
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru

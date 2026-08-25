@@ -7,10 +7,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "migrate": "tsx src/db/migrate.ts",
+    "migrate": "tsx --env-file=.env src/db/migrate.ts",
     "migrate:prod": "node dist/db/migrate.js",
     "typecheck": "tsc --noEmit",
     "verify:stage2": "tsx --env-file=.env src/dev/verifyStage2.ts"

@@ -15,16 +15,35 @@ docker-compose.yml  Весь стек одной командой
 
 ## Запуск всего стека
 
+Без Docker (работает на macOS 12+, где Docker Desktop уже не ставится) —
+двойной клик по `Запуск.command`, либо руками:
+
 ```bash
+brew install node postgresql@16 redis cloudflared
+brew services start postgresql@16 && brew services start redis && createdb knb
 cp backend/.env.example backend/.env      # вписать TELEGRAM_BOT_TOKEN и секреты
-docker compose up -d --build
+cd frontend && npm install && npm run build && cd ../backend
+npm install && npm run migrate && npm run dev
 curl http://localhost:3000/health
+```
+
+С Docker (macOS 14+, Linux-сервер):
+
+```bash
+docker compose up -d --build
 ```
 
 Один образ собирает Mini App и сервер; сервер отдаёт приложение сам, поэтому
 для проверки через туннель нужен один адрес. Миграции применяются при старте.
 
 Пошаговая инструкция без предварительных знаний — в [ЗАПУСК.md](ЗАПУСК.md).
+Объяснение каждой части простым языком — в [ЧТО-ПРОИСХОДИТ.md](ЧТО-ПРОИСХОДИТ.md).
+
+## Запуск в облаке
+
+Постоянный адрес, компьютер выключать можно, бесплатно:
+Render (сервер и Redis по `render.yaml`) + Neon (база).
+Пошагово — в [ОБЛАКО.md](ОБЛАКО.md).
 Подробности по серверу — в [backend/README.md](backend/README.md).
 
 ## Этапы
