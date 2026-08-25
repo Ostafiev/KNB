@@ -9,14 +9,14 @@ import { BattleScreen } from './screens/BattleScreen'
 import { ResultScreen } from './screens/ResultScreen'
 import { SummaryScreen } from './screens/SummaryScreen'
 import { InsufficientBalanceSheet } from './sheets/MiscSheets'
-import { DevBar, DEV_BAR_HEIGHT } from './components/DevBar'
+import { DevBar } from './components/DevBar'
 import { SHOW_DEV_BAR } from './config/env'
 import { ECONOMY, eloUpdate, roundsToWin } from './config/economy'
 import { randomChoice, resolveRound } from './lib/game'
 import { useAppState } from './state/AppState'
 import { OPPONENTS } from './data/mock'
 import { initTelegram } from './telegram/sdk'
-import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen } from './types'
+import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
 
 const EMPTY_MATCH: MatchConfig = {
   mode: 'random',
@@ -32,6 +32,7 @@ export default function App() {
   const { consentAccepted, acceptConsent, balance, rating, recordMatch } = useAppState()
 
   const [screen, setScreen] = useState<Screen>('splash')
+  const [opponentsTab, setOpponentsTab] = useState<Tab>('random')
   const [match, setMatch] = useState<MatchConfig>(EMPTY_MATCH)
   const [rounds, setRounds] = useState<RoundResult[]>([])
   const [score, setScore] = useState({ player: 0, opponent: 0 })
@@ -48,14 +49,23 @@ export default function App() {
 
   const go = useCallback((next: Screen) => setScreen(next), [])
 
+  const openOpponents = useCallback(
+    (tab: Tab) => {
+      setOpponentsTab(tab)
+      go('opponents')
+    },
+    [go],
+  )
+
   /**
    * Старт матча.
    * ЧАСТЬ 5 — если медяков не хватает, не блокируем действие,
    * а предлагаем посмотреть рекламу или пополнить баланс.
+   * Бесплатный матч (ставка 0) проверку баланса не проходит вовсе.
    */
   const startMatch = useCallback(
     (config: MatchConfig) => {
-      if (balance < config.bet) {
+      if (config.bet > ECONOMY.FREE_BET && balance < config.bet) {
         setInsufficientFor(config.bet)
         return
       }
@@ -69,6 +79,19 @@ export default function App() {
     },
     [balance, go],
   )
+
+  /** Правка 14: «Следующий бой» — новый соперник, условия те же, без подтверждений. */
+  const nextBattle = useCallback(() => {
+    startMatch({
+      mode: 'random',
+      bet: match.bet === ECONOMY.FREE_BET ? ECONOMY.MIN_BET : match.bet,
+      roundsTotal: match.roundsTotal,
+      condition: '',
+      opponentName: '',
+      opponentAvatar: '👤',
+      opponentRating: ECONOMY.ELO_START,
+    })
+  }, [match.bet, match.roundsTotal, startMatch])
 
   // Подбор соперника. TODO(backend): заменить на матчмейкинг через Redis + WebSocket.
   useEffect(() => {
@@ -94,6 +117,20 @@ export default function App() {
     (outcome: Outcome) => {
       if (settled.current) return
       settled.current = true
+
+      /*
+       * Бесплатный матч (правка 20) не влияет ни на баланс, ни на рейтинг,
+       * ни на счётчик сыгранных игр — иначе порог вывода (15 матчей из ЧАСТИ 5)
+       * накручивался бы бесплатными играми с другом.
+       * TODO(backend): то же правило должно жить на сервере, клиенту здесь верить нельзя.
+       */
+      if (match.bet === ECONOMY.FREE_BET) {
+        setMatchOutcome(outcome)
+        setRatingDelta(0)
+        go('summary')
+        return
+      }
+
       const scoreValue = outcome === 'win' ? 1 : outcome === 'draw' ? 0.5 : 0
       // TODO(backend): рейтинг и баланс считает сервер; здесь — оптимистичный расчёт.
       const delta = eloUpdate(rating, match.opponentRating, scoreValue, ECONOMY.ELO_K) - rating
@@ -109,6 +146,8 @@ export default function App() {
    * Ход игрока.
    * TODO(backend): выбор соперника приходит с сервера; сервер же валидирует
    * тайминг хода (античит, ЧАСТЬ 3, п.5). Сейчас соперник ходит случайно.
+   * TODO(backend): боты должны вести себя как живые игроки — задержка хода,
+   * неидеальная стратегия, правдоподобный профиль.
    */
   const handleChoice = useCallback(
     (choice: HandChoice) => {
@@ -142,20 +181,12 @@ export default function App() {
 
   const lastRound = rounds[rounds.length - 1]
 
-  return (
-    <div className="min-h-screen" style={{ background: 'var(--tg-bg)' }}>
-      {/* ЧАСТЬ 2, п.8 — панель переключения экранов только в DEV-сборке */}
-      {SHOW_DEV_BAR && <DevBar screen={screen} onGo={go} />}
-
-      <div
-        className="mx-auto relative"
-        style={{ maxWidth: 390, minHeight: '100vh', paddingTop: SHOW_DEV_BAR ? DEV_BAR_HEIGHT : 0 }}
-      >
+  const screens = (
+    <>
         {screen === 'splash' && (
           <SplashScreen onPlay={() => go(consentAccepted ? 'home' : 'consent')} />
         )}
 
-        {/* ЧАСТЬ 2, п.13 — согласие показывается один раз при первом входе */}
         {screen === 'consent' && (
           <ConsentScreen
             onAccept={() => {
@@ -167,13 +198,15 @@ export default function App() {
 
         {screen === 'home' && (
           <HomeScreen
-            onOpponents={() => go('opponents')}
+            onOpponents={openOpponents}
             onCreate={() => go('create')}
             onStartMatch={startMatch}
           />
         )}
 
-        {screen === 'opponents' && <OpponentsScreen onSelect={startMatch} onBack={() => go('home')} />}
+        {screen === 'opponents' && (
+          <OpponentsScreen initialTab={opponentsTab} onSelect={startMatch} onBack={() => go('home')} />
+        )}
 
         {screen === 'create' && <CreateScreen onCreate={startMatch} onBack={() => go('home')} />}
 
@@ -183,7 +216,7 @@ export default function App() {
 
         {screen === 'battle' && (
           <BattleScreen
-            // Ключ сбрасывает таймер и обратный отсчёт на каждом новом раунде
+            // Ключ сбрасывает таймер и вступление на каждом новом раунде
             key={rounds.length}
             config={match}
             roundNumber={rounds.length + 1}
@@ -210,14 +243,41 @@ export default function App() {
             rounds={rounds}
             score={score}
             ratingDelta={ratingDelta}
+            onNextBattle={nextBattle}
             onRematch={startMatch}
             onMenu={() => go('home')}
           />
         )}
 
-        {insufficientFor !== null && (
-          <InsufficientBalanceSheet needed={insufficientFor} onClose={() => setInsufficientFor(null)} />
-        )}
+      {insufficientFor !== null && (
+        <InsufficientBalanceSheet needed={insufficientFor} onClose={() => setInsufficientFor(null)} />
+      )}
+    </>
+  )
+
+  /*
+   * ЧАСТЬ 2, п.8 — панель переключения экранов только в DEV-сборке.
+   * Там она встаёт над приложением в одной колонке, а экран скроллится внутри
+   * своей области — иначе фиксированный бар перекрывал бы верх экрана.
+   * В PROD разметка обычная: скроллится сам документ.
+   */
+  if (SHOW_DEV_BAR) {
+    return (
+      <div className="flex flex-col" style={{ height: '100vh', background: 'var(--tg-bg)' }}>
+        <DevBar screen={screen} onGo={go} />
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto relative" style={{ maxWidth: 390 }}>
+            {screens}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--tg-bg)' }}>
+      <div className="mx-auto relative" style={{ maxWidth: 390, minHeight: '100vh' }}>
+        {screens}
       </div>
     </div>
   )

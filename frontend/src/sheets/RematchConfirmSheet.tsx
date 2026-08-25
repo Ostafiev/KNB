@@ -1,5 +1,6 @@
 import { BottomSheet, SheetDivider } from '../components/BottomSheet'
-import { useT } from '../i18n'
+import { useI18n, useT } from '../i18n'
+import { formatRounds } from '../lib/format'
 
 /**
  * Подтверждение реванша вторым игроком.
@@ -26,6 +27,7 @@ export function RematchConfirmSheet({
   onEditConditions: () => void
 }) {
   const t = useT()
+  const { lang } = useI18n()
 
   return (
     <BottomSheet open onClose={onDecline}>
@@ -53,7 +55,7 @@ export function RematchConfirmSheet({
         <div className="h-px" style={{ background: 'var(--tg-border)' }} />
         <div className="flex items-center justify-between">
           <span className="text-tg-subtext text-xs uppercase tracking-wider">{t('common.rounds')}</span>
-          <span className="text-sm font-bold text-tg-text">{rounds}</span>
+          <span className="text-sm font-bold text-tg-text">{formatRounds(rounds, lang)}</span>
         </div>
         {condition.trim() && (
           <>

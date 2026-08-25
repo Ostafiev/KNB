@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { PrimaryButton, GhostButton } from '../components/ui'
 import { BetSlider, RoundsPicker } from '../components/BetControls'
+import { Hand } from '../components/Hand'
+import { useAppChrome } from '../components/AppMenu'
 import { RematchConfirmSheet } from '../sheets/RematchConfirmSheet'
 import { useI18n, useT } from '../i18n'
 import { useAppState } from '../state/AppState'
@@ -18,6 +20,7 @@ export function SummaryScreen({
   rounds,
   score,
   ratingDelta,
+  onNextBattle,
   onRematch,
   onMenu,
 }: {
@@ -26,11 +29,13 @@ export function SummaryScreen({
   rounds: RoundResult[]
   score: { player: number; opponent: number }
   ratingDelta: number
+  onNextBattle: () => void
   onRematch: (config: MatchConfig) => void
   onMenu: () => void
 }) {
   const t = useT()
   const { lang } = useI18n()
+  const { topBar, menu } = useAppChrome()
   const { nickname, avatar, balance, rewardAd } = useAppState()
 
   const [phase, setPhase] = useState<RematchPhase>('idle')
@@ -41,7 +46,8 @@ export function SummaryScreen({
   const [adWatched, setAdWatched] = useState(false)
   const [adLoading, setAdLoading] = useState(false)
 
-  const coinsDelta = outcome === 'win' ? config.bet : outcome === 'lose' ? -config.bet : 0
+  const isFree = config.bet === ECONOMY.FREE_BET
+  const coinsDelta = isFree ? 0 : outcome === 'win' ? config.bet : outcome === 'lose' ? -config.bet : 0
   const lastRound = rounds[rounds.length - 1]
 
   useEffect(() => {
@@ -90,7 +96,10 @@ export function SummaryScreen({
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-4 gap-4">
-      <div className="text-center pt-4">
+      {topBar}
+      {menu}
+
+      <div className="text-center">
         <div className="text-tg-subtext text-xs uppercase tracking-widest mb-1">{t('summary.eyebrow')}</div>
         <h1 className="text-2xl font-black text-tg-text">{t('summary.title')}</h1>
       </div>
@@ -116,7 +125,7 @@ export function SummaryScreen({
             <div className="text-xs text-tg-subtext truncate max-w-full">
               {config.opponentName.split(' ')[0]}
             </div>
-            <div className="text-3xl">{lastRound ? HAND_EMOJI[lastRound.opponentChoice] : '✊'}</div>
+            {lastRound && <Hand choice={lastRound.opponentChoice} side="left" className="text-3xl" />}
           </div>
 
           <div className="flex flex-col items-center gap-2">
@@ -125,15 +134,21 @@ export function SummaryScreen({
               {score.opponent}:{score.player}
             </div>
             <div className="glass rounded-full px-3 py-1 flex items-center gap-1">
-              <span className="text-sm">🪙</span>
-              <span
-                className={`font-black text-sm ${
-                  coinsDelta > 0 ? 'text-tg-green' : coinsDelta < 0 ? 'text-tg-red' : 'text-tg-subtext'
-                }`}
-              >
-                {coinsDelta > 0 ? '+' : ''}
-                {coinsDelta}
-              </span>
+              {isFree ? (
+                <span className="font-black text-sm text-tg-green">{t('bet.free')}</span>
+              ) : (
+                <>
+                  <span className="text-sm">🪙</span>
+                  <span
+                    className={`font-black text-sm ${
+                      coinsDelta > 0 ? 'text-tg-green' : coinsDelta < 0 ? 'text-tg-red' : 'text-tg-subtext'
+                    }`}
+                  >
+                    {coinsDelta > 0 ? '+' : ''}
+                    {coinsDelta}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -142,7 +157,7 @@ export function SummaryScreen({
               {avatar}
             </div>
             <div className="text-xs text-tg-subtext truncate max-w-full">{nickname.split(' ')[0]}</div>
-            <div className="text-3xl">{lastRound ? HAND_EMOJI[lastRound.playerChoice] : '✊'}</div>
+            {lastRound && <Hand choice={lastRound.playerChoice} side="right" className="text-3xl" />}
           </div>
         </div>
       </div>
@@ -202,20 +217,15 @@ export function SummaryScreen({
         <div className="text-right flex-shrink-0">
           <div className="text-tg-subtext text-xs">{t('summary.newBalance')}</div>
           <div className="font-bold text-tg-text">{formatCoins(balance, lang)} 🪙</div>
-          <div
-            className={`text-xs font-semibold ${ratingDelta >= 0 ? 'text-tg-green' : 'text-tg-red'}`}
-          >
+          <div className={`text-xs font-semibold ${ratingDelta >= 0 ? 'text-tg-green' : 'text-tg-red'}`}>
             {t('summary.ratingDelta')} {ratingDelta >= 0 ? '+' : ''}
             {ratingDelta}
           </div>
         </div>
       </div>
 
-      {/*
-        ЧАСТЬ 5 — rewarded interstitial на экране итогов.
-        Полностью добровольно: принудительных показов между экранами нет.
-      */}
-      {!adWatched && (
+      {/* Rewarded-реклама — полностью добровольная (ЧАСТЬ 5) */}
+      {!adWatched ? (
         <button
           onClick={watchAd}
           disabled={adLoading}
@@ -229,8 +239,7 @@ export function SummaryScreen({
             <div className="text-tg-subtext text-xs">{t('ad.hint')}</div>
           </div>
         </button>
-      )}
-      {adWatched && (
+      ) : (
         <div className="glass rounded-2xl px-4 py-3 flex items-center gap-3 border border-tg-green/40 animate-fade-in">
           <span className="text-2xl">✅</span>
           <span className="text-sm font-bold text-tg-green">
@@ -246,19 +255,19 @@ export function SummaryScreen({
             <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-3">
               {t('create.stake')}
             </div>
-            <BetSlider value={rematchBet} onChange={setRematchBet} compact />
+            <BetSlider
+              value={rematchBet}
+              onChange={setRematchBet}
+              compact
+              allowFree={config.mode === 'friend'}
+            />
           </div>
           <div className="glass rounded-2xl p-4">
             <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-3">
               {t('create.rounds')}
             </div>
-            <RoundsPicker
-              value={rematchRounds}
-              onChange={setRematchRounds}
-              max={config.mode === 'friend' ? ECONOMY.MAX_ROUNDS_INVITE : 5}
-            />
+            <RoundsPicker value={rematchRounds} onChange={setRematchRounds} />
           </div>
-          {/* Условие пари — только в матче с другом (ЧАСТЬ 2, п.11) */}
           {config.mode === 'friend' && (
             <div className="glass rounded-2xl p-4">
               <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-2">
@@ -289,10 +298,19 @@ export function SummaryScreen({
         </div>
       ) : (
         <div className="flex flex-col gap-3 mt-auto pb-2">
+          {/*
+            Правка 14: «Следующий бой» и «Реванш» — разные действия.
+            Первое сразу ищет нового соперника, второе требует согласия текущего.
+          */}
           {phase === 'idle' && (
-            <PrimaryButton onClick={() => setPhase('waiting')} className="py-4 text-lg">
-              {t('summary.rematch')}
-            </PrimaryButton>
+            <>
+              <PrimaryButton onClick={onNextBattle} className="py-4 text-lg">
+                {t('summary.nextBattle')}
+              </PrimaryButton>
+              <GhostButton onClick={() => setPhase('waiting')} tone="accent">
+                ⚔️ {t('summary.rematch')}
+              </GhostButton>
+            </>
           )}
 
           {phase === 'waiting' && (

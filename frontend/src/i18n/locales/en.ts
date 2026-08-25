@@ -62,6 +62,7 @@ export const en: Record<TranslationKey, string> = {
   'home.collapse': 'Collapse',
   'home.more': '+{count} more',
   'home.showStats': 'Show statistics',
+  'home.hideStats': 'Hide statistics',
   'home.rankProgress': '{rank} · {points} pts to next level',
   'home.dailyBonus.title': 'Daily bonus',
   'home.dailyBonus.available': '+{amount} 🪙 waiting for you',
@@ -80,7 +81,6 @@ export const en: Record<TranslationKey, string> = {
   'menu.feedback.sub': 'Bug, idea, complaint',
   'menu.faq': 'FAQ / Help',
   'menu.faq.sub': 'Frequently asked questions',
-  'menu.logout': 'Log out',
 
   // ─── Profile ──────────────────────────────────────────────────────────────
   'profile.edit': 'Edit',
@@ -183,7 +183,7 @@ export const en: Record<TranslationKey, string> = {
   'opponents.sort.stake': 'Bet',
   'opponents.sort.rating': 'Rating',
   'opponents.sort.rounds': 'Rounds',
-  'opponents.skill': '1500+ pts',
+  'opponents.invite': 'Invite',
   'opponents.search': 'Search players…',
   'opponents.empty': 'No players',
   'opponents.empty.hint': 'Try changing the filters',
@@ -194,6 +194,8 @@ export const en: Record<TranslationKey, string> = {
   'create.mode.random': '⚡ Random',
   'create.mode.friend': '👥 With a friend',
   'create.stake': 'Coin bet',
+  'bet.free': 'Free',
+  'bet.free.note': 'Free games are only available with friends and by invitation. Ratings do not change in those matches.',
   'create.rounds': 'Number of rounds',
   'create.condition': 'Wager terms (optional)',
   'create.condition.placeholder': 'For example: the loser does 20 push-ups…',
@@ -214,6 +216,7 @@ export const en: Record<TranslationKey, string> = {
   // ─── Battle ───────────────────────────────────────────────────────────────
   'battle.roundOf': 'Round {current}/{total}',
   'battle.score': 'Score {player}:{opponent}',
+  'battle.start': 'GO',
   'battle.getReady': 'Get ready…',
   'battle.choose': 'Choose!',
   'battle.faster': 'Faster!',
@@ -252,7 +255,8 @@ export const en: Record<TranslationKey, string> = {
   'summary.drawn': 'Draw — bets returned',
   'summary.newBalance': 'New balance',
   'summary.ratingDelta': 'Rating',
-  'summary.rematch': '⚔️ Next match',
+  'summary.nextBattle': '⚔️ Next match',
+  'summary.rematch': 'Rematch this opponent',
   'summary.mainMenu': 'Main menu',
   'summary.waitingConfirm': 'Waiting for confirmation',
   'summary.from': 'from {name}',
@@ -262,6 +266,16 @@ export const en: Record<TranslationKey, string> = {
   'summary.rematch.requests': '{name} is asking for a rematch',
   'summary.condition': 'Terms',
   'summary.noCondition': 'no extra terms',
+
+  // ─── Top up ───────────────────────────────────────────────────────────────
+  'topup.title': 'Top up balance',
+  'topup.subtitle': 'Coins are bought with Telegram Stars or with TON',
+  'topup.stars': 'Telegram Stars',
+  'topup.stars.rate': '1 star ≈ {coins} coins',
+  'topup.ton': 'TON',
+  'topup.ton.rate': '1 TON = {coins} coins',
+  'topup.soon': 'soon',
+  'topup.note': 'A wallet is only connected on the top-up and withdrawal screens — it is not needed to sign up.',
 
   // ─── Ads ──────────────────────────────────────────────────────────────────
   'ad.watch': 'Watch an ad +{amount} 🪙',

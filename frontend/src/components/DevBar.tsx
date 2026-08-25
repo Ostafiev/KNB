@@ -41,7 +41,7 @@ export function DevBar({ screen, onGo }: { screen: Screen; onGo: (screen: Screen
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto"
+      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto"
       style={{
         background: 'var(--tg-bg)',
         borderBottom: '1px solid var(--tg-border)',

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { ScreenHeader, PrimaryButton, GhostButton } from '../components/ui'
+import { useAppChrome } from '../components/AppMenu'
 import { BetSlider, RoundsPicker } from '../components/BetControls'
-import { useT } from '../i18n'
+import { useI18n, useT } from '../i18n'
+import { formatRounds } from '../lib/format'
 import { ECONOMY } from '../config/economy'
 import { BOT_USERNAME } from '../config/env'
 import { shareLink } from '../telegram/sdk'
@@ -16,6 +18,8 @@ export function CreateScreen({
   onBack: () => void
 }) {
   const t = useT()
+  const { lang } = useI18n()
+  const { topBar, menu } = useAppChrome()
   const [mode, setMode] = useState<MatchMode>('random')
   const [bet, setBet] = useState(100)
   const [rounds, setRounds] = useState(3)
@@ -41,7 +45,7 @@ export function CreateScreen({
   const invite = () => {
     const url = `https://t.me/${BOT_USERNAME}?start=game_${Math.random().toString(36).slice(2, 10)}`
     const text = [
-      `${t('common.bet')}: ${bet} 🪙`,
+      `${t('common.bet')}: ${bet === ECONOMY.FREE_BET ? t('bet.free') : `${bet} 🪙`}`,
       `${t('create.rounds')}: ${rounds}`,
       effectiveCondition ? `${t('summary.condition')}: ${effectiveCondition}` : '',
     ]
@@ -52,6 +56,8 @@ export function CreateScreen({
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-4">
+      {topBar}
+      {menu}
       <ScreenHeader title={t('create.title')} onBack={onBack} />
 
       <div className="flex flex-col gap-4 animate-fade-in pb-4">
@@ -67,6 +73,9 @@ export function CreateScreen({
                 onClick={() => {
                   hapticSelection()
                   setMode(key)
+                  // Ставка 0 разрешена только с другом — при возврате
+                  // в случайный матч поднимаем её до минимальной (правка 20).
+                  if (key === 'random' && bet < ECONOMY.MIN_BET) setBet(ECONOMY.MIN_BET)
                 }}
                 className="tappable flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
                 style={{
@@ -85,7 +94,7 @@ export function CreateScreen({
           <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-4">
             {t('create.stake')}
           </div>
-          <BetSlider value={bet} onChange={setBet} />
+          <BetSlider value={bet} onChange={setBet} allowFree={mode === 'friend'} />
         </div>
 
         {/* Раунды */}
@@ -93,11 +102,7 @@ export function CreateScreen({
           <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider mb-3">
             {t('create.rounds')}
           </div>
-          <RoundsPicker
-            value={rounds}
-            onChange={setRounds}
-            max={mode === 'friend' ? ECONOMY.MAX_ROUNDS_INVITE : 5}
-          />
+          <RoundsPicker value={rounds} onChange={setRounds} />
         </div>
 
         {/* Условие пари — только для режима «с другом» */}
@@ -130,7 +135,7 @@ export function CreateScreen({
           <div className="flex-1 min-w-0">
             <div className="text-tg-subtext text-xs">{t('create.summary')}</div>
             <div className="text-sm font-bold text-tg-text">
-              {bet} 🪙 · {rounds} {t('common.rounds')} ·{' '}
+              {bet === ECONOMY.FREE_BET ? t('bet.free') : `${bet} 🪙`} · {formatRounds(rounds, lang)} ·{' '}
               {effectiveCondition
                 ? `"${effectiveCondition.slice(0, 30)}${effectiveCondition.length > 30 ? '…' : ''}"`
                 : t('create.summary.noCondition')}

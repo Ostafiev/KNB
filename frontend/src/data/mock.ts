@@ -31,13 +31,15 @@ export interface RecentGame {
   result: 'win' | 'lose' | 'draw'
   delta: number
   hand: string
+  /** Сколько раундов было в матче — правка 6. */
+  rounds: number
   minutesAgo: number
 }
 
 export const RECENT_GAMES: RecentGame[] = [
-  { opp: 'Алексей К.', result: 'win', delta: 50, hand: '✊', minutesAgo: 2 },
-  { opp: 'Мария Т.', result: 'lose', delta: -120, hand: '✌️', minutesAgo: 18 },
-  { opp: 'Незнакомец', result: 'draw', delta: 0, hand: '✋', minutesAgo: 60 },
-  { opp: 'Дмитрий Р.', result: 'win', delta: 25, hand: '✋', minutesAgo: 180 },
-  { opp: 'Анна С.', result: 'lose', delta: -200, hand: '✊', minutesAgo: 1500 },
+  { opp: 'Алексей К.', result: 'win', delta: 50, hand: '✊', rounds: 3, minutesAgo: 2 },
+  { opp: 'Мария Т.', result: 'lose', delta: -120, hand: '✌️', rounds: 5, minutesAgo: 18 },
+  { opp: 'Незнакомец', result: 'draw', delta: 0, hand: '✋', rounds: 1, minutesAgo: 60 },
+  { opp: 'Дмитрий Р.', result: 'win', delta: 25, hand: '✋', rounds: 3, minutesAgo: 180 },
+  { opp: 'Анна С.', result: 'lose', delta: -200, hand: '✊', rounds: 7, minutesAgo: 1500 },
 ]

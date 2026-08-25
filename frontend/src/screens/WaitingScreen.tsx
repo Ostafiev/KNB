@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useT } from '../i18n'
+import { useAppChrome } from '../components/AppMenu'
+import { useI18n, useT } from '../i18n'
+import { formatRounds } from '../lib/format'
+import { ECONOMY } from '../config/economy'
 
 export function WaitingScreen({
   onCancel,
@@ -11,6 +14,8 @@ export function WaitingScreen({
   rounds: number
 }) {
   const t = useT()
+  const { lang } = useI18n()
+  const { topBar, menu } = useAppChrome()
   const [dots, setDots] = useState(0)
 
   useEffect(() => {
@@ -19,14 +24,18 @@ export function WaitingScreen({
   }, [])
 
   return (
-    <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom items-center justify-between px-6">
-      <div className="pt-6">
+    <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-6">
+      {topBar}
+      {menu}
+
+      <div className="pt-4">
         <div className="text-tg-subtext text-xs font-semibold uppercase tracking-widest text-center">
-          {t('common.bet')} · {bet} 🪙 · {rounds} {t('common.rounds')}
+          {t('common.bet')} · {bet === ECONOMY.FREE_BET ? t('bet.free') : `${bet} 🪙`} ·{' '}
+          {formatRounds(rounds, lang)}
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-8 animate-fade-in">
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 animate-fade-in">
         <div className="relative flex items-center justify-center w-48 h-48">
           {[1, 2, 3].map((ring) => (
             <div
@@ -51,18 +60,10 @@ export function WaitingScreen({
           </h2>
           <p className="text-tg-subtext text-sm text-center max-w-xs">{t('waiting.hint')}</p>
         </div>
-
-        {/* TODO(backend): реальные цифры очереди из Redis-матчмейкинга (ЧАСТЬ 3) */}
-        <div className="flex gap-3">
-          <div className="glass rounded-xl px-4 py-3 text-center">
-            <div className="text-tg-blue-light font-bold text-lg">142</div>
-            <div className="text-tg-subtext text-xs">{t('waiting.inSearch')}</div>
-          </div>
-          <div className="glass rounded-xl px-4 py-3 text-center">
-            <div className="text-tg-green font-bold text-lg">~8s</div>
-            <div className="text-tg-subtext text-xs">{t('waiting.avgTime')}</div>
-          </div>
-        </div>
+        {/*
+          Правка 12: плитки «142 в поиске» и «~8s среднее время» убраны.
+          На старте эти цифры были бы выдуманными.
+        */}
       </div>
 
       <div className="w-full pb-4">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useT } from '../i18n'
 import { PrimaryButton } from '../components/ui'
-import { HAND_EMOJI } from '../lib/game'
+import { Hand } from '../components/Hand'
 import type { MatchConfig, Outcome, RoundResult } from '../types'
 
 /**
@@ -74,11 +74,12 @@ export function ResultScreen({
       {/* Столкновение: слева соперник, справа игрок */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
         <div className="flex items-center justify-center gap-6">
-          <div
+          {/* Руки развёрнуты навстречу друг другу (правка 1/3) */}
+          <Hand
+            choice={round.opponentChoice}
+            side="left"
             className={`text-7xl animate-collision-left ${round.outcome === 'lose' ? 'animate-float' : ''}`}
-          >
-            {HAND_EMOJI[round.opponentChoice]}
-          </div>
+          />
           <div className="flex flex-col items-center">
             <div
               className="glass rounded-full w-12 h-12 flex items-center justify-center text-xl"
@@ -87,9 +88,11 @@ export function ResultScreen({
               💥
             </div>
           </div>
-          <div className={`text-7xl animate-collision-right ${round.outcome === 'win' ? 'animate-float' : ''}`}>
-            {HAND_EMOJI[round.playerChoice]}
-          </div>
+          <Hand
+            choice={round.playerChoice}
+            side="right"
+            className={`text-7xl animate-collision-right ${round.outcome === 'win' ? 'animate-float' : ''}`}
+          />
         </div>
 
         {showResult && (

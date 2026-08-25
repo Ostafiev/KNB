@@ -60,6 +60,7 @@ export const ru = {
   'home.collapse': 'Свернуть',
   'home.more': '+{count} ещё',
   'home.showStats': 'Показать статистику',
+  'home.hideStats': 'Скрыть статистику',
   'home.rankProgress': '{rank} · до следующего уровня {points} pts',
   'home.dailyBonus.title': 'Ежедневный бонус',
   'home.dailyBonus.available': '+{amount} 🪙 ждут тебя',
@@ -78,7 +79,6 @@ export const ru = {
   'menu.feedback.sub': 'Баг, идея, жалоба',
   'menu.faq': 'FAQ / Помощь',
   'menu.faq.sub': 'Частые вопросы',
-  'menu.logout': 'Выйти из аккаунта',
 
   // ─── Профиль ──────────────────────────────────────────────────────────────
   'profile.edit': 'Изменить',
@@ -181,7 +181,7 @@ export const ru = {
   'opponents.sort.stake': 'Ставка',
   'opponents.sort.rating': 'Рейтинг',
   'opponents.sort.rounds': 'Раунды',
-  'opponents.skill': '1500+ pts',
+  'opponents.invite': 'Позвать',
   'opponents.search': 'Поиск игроков…',
   'opponents.empty': 'Нет игроков',
   'opponents.empty.hint': 'Попробуй изменить фильтры',
@@ -192,6 +192,8 @@ export const ru = {
   'create.mode.random': '⚡ Случайный',
   'create.mode.friend': '👥 С другом',
   'create.stake': 'Ставка медяками',
+  'bet.free': 'Бесплатно',
+  'bet.free.note': 'Бесплатная игра доступна только с друзьями и по приглашению. Рейтинг в таких матчах не меняется.',
   'create.rounds': 'Количество раундов',
   'create.condition': 'Условие пари (необязательно)',
   'create.condition.placeholder': 'Например: проигравший делает 20 отжиманий…',
@@ -212,6 +214,7 @@ export const ru = {
   // ─── Бой ──────────────────────────────────────────────────────────────────
   'battle.roundOf': 'Раунд {current}/{total}',
   'battle.score': 'Счёт {player}:{opponent}',
+  'battle.start': 'СТАРТ',
   'battle.getReady': 'Приготовься…',
   'battle.choose': 'Выбирай!',
   'battle.faster': 'Быстрее!',
@@ -250,7 +253,8 @@ export const ru = {
   'summary.drawn': 'Ничья — ставки возвращены',
   'summary.newBalance': 'Новый баланс',
   'summary.ratingDelta': 'Рейтинг',
-  'summary.rematch': '⚔️ Следующий бой',
+  'summary.nextBattle': '⚔️ Следующий бой',
+  'summary.rematch': 'Реванш с этим соперником',
   'summary.mainMenu': 'В главное меню',
   'summary.waitingConfirm': 'Ожидаем подтверждения',
   'summary.from': 'от {name}',
@@ -260,6 +264,16 @@ export const ru = {
   'summary.rematch.requests': '{name} запрашивает реванш',
   'summary.condition': 'Условие',
   'summary.noCondition': 'без доп. условий',
+
+  // ─── Пополнение ───────────────────────────────────────────────────────────
+  'topup.title': 'Пополнить баланс',
+  'topup.subtitle': 'Медяки покупаются за звёзды Telegram или за TON',
+  'topup.stars': 'Звёзды Telegram',
+  'topup.stars.rate': '1 звезда ≈ {coins} медяков',
+  'topup.ton': 'TON',
+  'topup.ton.rate': '1 TON = {coins} медяков',
+  'topup.soon': 'скоро',
+  'topup.note': 'Кошелёк подключается только на экранах пополнения и вывода — при регистрации он не нужен.',
 
   // ─── Реклама ──────────────────────────────────────────────────────────────
   'ad.watch': 'Смотреть рекламу +{amount} 🪙',

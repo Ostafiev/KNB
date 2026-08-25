@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Hand } from '../components/Hand'
 import { useT } from '../i18n'
 import { useAppState } from '../state/AppState'
 import { ECONOMY } from '../config/economy'
@@ -9,7 +10,11 @@ import type { HandChoice, MatchConfig } from '../types'
 /** Длительность финальной фазы тряски перед раскрытием (ЧАСТЬ 2, п.7). */
 const FINAL_SHAKE_MS = 400
 
-type Phase = 'countdown' | 'choose' | 'final-shake'
+/** Правка 13: перед боем слово «СТАРТ» вспыхивает дважды за две секунды. */
+const FLASH_STEP_MS = 500
+const FLASH_TOTAL_MS = FLASH_STEP_MS * 4
+
+type Phase = 'intro' | 'choose' | 'final-shake'
 
 export function BattleScreen({
   config,
@@ -27,8 +32,9 @@ export function BattleScreen({
   const t = useT()
   const { nickname, avatar, soundEnabled, setSoundEnabled } = useAppState()
 
-  const [countdown, setCountdown] = useState(3)
-  const [phase, setPhase] = useState<Phase>('countdown')
+  const [phase, setPhase] = useState<Phase>('intro')
+  /** 1 и 3 — слово видно, 0/2/4 — скрыто. */
+  const [flash, setFlash] = useState(0)
   const [selected, setSelected] = useState<HandChoice | null>(null)
   const [idleShaking, setIdleShaking] = useState(false)
   const [roundTimer, setRoundTimer] = useState<number>(ECONOMY.ROUND_SECONDS)
@@ -38,17 +44,21 @@ export function BattleScreen({
   // Защита от двойного резолва: таймаут и клик могут прийти почти одновременно.
   const committed = useRef(false)
 
-  // Обратный отсчёт перед раундом
+  // Вступление: две вспышки слова, затем фаза выбора
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
-      return () => clearTimeout(timer)
-    }
-    setPhase('choose')
-    setIdleShaking(true)
-    const timer = setTimeout(() => setIdleShaking(false), 2000)
-    return () => clearTimeout(timer)
-  }, [countdown])
+    const timers = [
+      setTimeout(() => setFlash(1), 0),
+      setTimeout(() => setFlash(2), FLASH_STEP_MS),
+      setTimeout(() => setFlash(3), FLASH_STEP_MS * 2),
+      setTimeout(() => setFlash(4), FLASH_STEP_MS * 3),
+      setTimeout(() => {
+        setPhase('choose')
+        setIdleShaking(true)
+      }, FLASH_TOTAL_MS),
+      setTimeout(() => setIdleShaking(false), FLASH_TOTAL_MS + 2000),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [])
 
   /**
    * Фиксация хода: показываем финальную фазу тряски и только затем раскрываем фигуры.
@@ -79,10 +89,11 @@ export function BattleScreen({
   const timerUrgent = roundTimer <= 3
   const finalShake = phase === 'final-shake'
   const handAnimation = finalShake ? 'animate-shake-final' : idleShaking ? 'animate-shake' : 'animate-float'
+  const flashVisible = flash === 1 || flash === 3
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom relative">
-      {/* Иконки меню и выхода — правый верхний угол, разведены между собой */}
+      {/* Иконки меню и выхода — правый верхний угол */}
       <div
         className="absolute top-0 right-0 z-10 flex items-center gap-2 px-4"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
@@ -105,10 +116,7 @@ export function BattleScreen({
         </button>
       </div>
 
-      {/*
-        ЧАСТЬ 2, п.2 — счётчик раунда.
-        Мелким текстом слева от шкалы таймера, чтобы не спорить с ней за внимание.
-      */}
+      {/* Счётчик раунда — мелким текстом, не спорит со шкалой таймера */}
       <div className="px-4 pt-2 mb-1" style={{ paddingRight: 92 }}>
         <div className="flex items-baseline gap-2">
           <span className="text-tg-subtext text-xs font-semibold tracking-wide">
@@ -123,7 +131,7 @@ export function BattleScreen({
       </div>
 
       {/* Шкала таймера */}
-      {phase !== 'countdown' && (
+      {phase !== 'intro' && (
         <div className="px-4 mb-1">
           <div
             className="glass rounded-xl px-4 py-2 flex items-center gap-3"
@@ -180,7 +188,7 @@ export function BattleScreen({
         </div>
       </div>
 
-      {/* Условие пари — только в матчах с друзьями (ЧАСТЬ 2, п.11) */}
+      {/* Условие пари — только в матчах с друзьями */}
       {config.condition && (
         <div className="px-4 pb-2">
           <div className="glass rounded-xl px-3 py-2 flex items-center gap-2">
@@ -192,32 +200,34 @@ export function BattleScreen({
 
       {/* Арена */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 px-4">
-        {phase === 'countdown' ? (
-          <div className="flex flex-col items-center gap-4">
-            <div
-              key={countdown}
-              className="text-9xl font-black text-transparent bg-clip-text"
-              style={{
-                backgroundImage: 'linear-gradient(135deg, var(--tg-blue-light), var(--tg-blue))',
-                animation: 'countdown 1s ease forwards',
-              }}
-            >
-              {countdown === 0 ? '🥊' : countdown}
-            </div>
-            <p className="text-tg-subtext text-sm animate-fade-in">{t('battle.getReady')}</p>
+        {phase === 'intro' ? (
+          <div className="flex items-center justify-center h-40">
+            {flashVisible && (
+              <div
+                key={flash}
+                className="text-6xl font-black tracking-tight text-transparent bg-clip-text animate-scale-in"
+                style={{
+                  backgroundImage: 'linear-gradient(135deg, var(--tg-blue-light), var(--tg-blue))',
+                }}
+              >
+                {t('battle.start')}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4 w-full animate-fade-in">
+            {/* Руки развёрнуты навстречу друг другу (правка 1/3) */}
             <div className="flex items-center justify-center gap-8">
-              {/* Слева — соперник */}
-              <div className={`text-6xl ${handAnimation}`}>✊</div>
+              <Hand choice="rock" side="left" className={`text-6xl ${handAnimation}`} />
               <div className="glass rounded-full w-10 h-10 flex items-center justify-center text-tg-red font-black text-sm glow-red">
                 VS
               </div>
-              {/* Справа — игрок */}
-              <div className={`text-6xl ${handAnimation}`} style={{ animationDelay: finalShake ? '0s' : '0.15s' }}>
-                ✊
-              </div>
+              <Hand
+                choice="rock"
+                side="right"
+                className={`text-6xl ${handAnimation}`}
+                style={{ animationDelay: finalShake ? '0s' : '0.15s' }}
+              />
             </div>
             {!selected && (
               <p
@@ -239,7 +249,6 @@ export function BattleScreen({
           style={{ border: '1px solid var(--tg-blue)', boxShadow: '0 0 18px rgba(42,159,214,0.15)' }}
         >
           <div className="flex-1" />
-          {/* Правка 23b — вместо подписи «Ты» показываем реальное имя игрока */}
           <div className="text-right min-w-0">
             <div className="text-sm font-bold text-tg-text truncate max-w-40">{nickname}</div>
           </div>
@@ -248,7 +257,8 @@ export function BattleScreen({
           </div>
         </div>
 
-        {/* Кнопки фигур — порядок камень, ножницы, бумага (ЧАСТЬ 2, п.1) */}
+        {/* Кнопки фигур — порядок камень, ножницы, бумага. Здесь эмодзи вертикальные:
+            это выбор в меню, а не рука в бою. */}
         <div className="grid grid-cols-3 gap-3">
           {CHOICES.map((choice) => (
             <button
@@ -303,7 +313,7 @@ export function BattleScreen({
         </div>
       )}
 
-      {/* Меню матча. Пункт «Скорость анимации» удалён — ЧАСТЬ 2, п.6 */}
+      {/* Меню матча */}
       {showMenu && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center"

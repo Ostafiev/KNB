@@ -1,104 +1,59 @@
 import { useState } from 'react'
-import { BottomSheet, SheetRow, SheetDivider } from '../components/BottomSheet'
 import { StatChip } from '../components/ui'
-import { ProfileSheet } from '../sheets/ProfileSheet'
-import { StatsSheet } from '../sheets/StatsSheet'
-import { ReferralSheet } from '../sheets/ReferralSheet'
+import { useAppChrome } from '../components/AppMenu'
 import { InviteSheet } from '../sheets/InviteSheet'
-import { SupportSheet, FeedbackSheet, FAQSheet } from '../sheets/MiscSheets'
 import { useI18n, useT } from '../i18n'
 import { useAppState } from '../state/AppState'
 import { ECONOMY } from '../config/economy'
 import { rankFor } from '../lib/game'
-import { formatCoins, formatRelative } from '../lib/format'
+import { formatCoins, formatRelative, formatRounds } from '../lib/format'
 import { FRIENDS, RECENT_GAMES } from '../data/mock'
 import { hapticNotify } from '../telegram/sdk'
-import type { MatchConfig } from '../types'
-
-type HomeSheet = 'menu' | 'profile' | 'support' | 'feedback' | 'faq' | 'stats' | 'referral' | 'invite' | null
+import type { MatchConfig, Tab } from '../types'
 
 export function HomeScreen({
   onOpponents,
   onCreate,
   onStartMatch,
 }: {
-  onOpponents: () => void
+  onOpponents: (tab: Tab) => void
   onCreate: () => void
   onStartMatch: (config: MatchConfig) => void
 }) {
   const t = useT()
   const { lang } = useI18n()
+  const { topBar, menu, openTopUp } = useAppChrome()
   const {
     nickname,
     avatar,
     balance,
     rating,
     stats,
+    matchesToWithdraw,
+    withdrawUnlocked,
     dailyBonusAvailable,
     claimDailyBonus,
   } = useAppState()
 
-  const [sheet, setSheet] = useState<HomeSheet>(null)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const [gamesExpanded, setGamesExpanded] = useState(false)
 
   const rank = rankFor(rating)
   const friendsOnline = FRIENDS.filter((f) => f.online).length
   const visibleGames = gamesExpanded ? RECENT_GAMES : RECENT_GAMES.slice(0, 3)
+  const winrate = stats.games > 0 ? Math.round((stats.wins / stats.games) * 100) : 0
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-4 gap-4">
-      {/*
-        Хедер. В PROD это единственная навигация — DEV-бар со списком экранов
-        рендерится только в dev-сборке (ЧАСТЬ 2, п.8).
-      */}
-      <div className="flex items-center justify-between pt-2">
-        <div className="text-xl font-black text-tg-text tracking-tight">КНБ</div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 glass rounded-full px-3 py-1.5">
-            <span className="text-sm">🪙</span>
-            <span className="text-sm font-bold text-tg-text font-mono">{formatCoins(balance, lang)}</span>
-          </div>
-          <button
-            onClick={() => setSheet('menu')}
-            className="tappable w-9 h-9 glass rounded-xl flex items-center justify-center border border-tg-border"
-            aria-label={t('home.menu')}
-          >
-            <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-              <rect y="0" width="16" height="2" rx="1" fill="currentColor" className="text-tg-subtext" />
-              <rect y="5" width="12" height="2" rx="1" fill="currentColor" className="text-tg-subtext" />
-              <rect y="10" width="8" height="2" rx="1" fill="currentColor" className="text-tg-subtext" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      {topBar}
+      {menu}
 
-      {/* Главное меню */}
-      <BottomSheet open={sheet === 'menu'} onClose={() => setSheet(null)}>
-        <SheetRow icon="👤" label={t('menu.profile')} sublabel={t('menu.profile.sub')} onClick={() => setSheet('profile')} />
-        <SheetRow
-          icon="🎁"
-          label={t('menu.referral')}
-          sublabel={t('menu.referral.sub', { amount: ECONOMY.REFERRAL_INVITER_BONUS })}
-          onClick={() => setSheet('referral')}
-        />
-        <SheetRow icon="💛" label={t('menu.support')} sublabel={t('menu.support.sub')} onClick={() => setSheet('support')} />
-        <SheetRow icon="✉️" label={t('menu.feedback')} sublabel={t('menu.feedback.sub')} onClick={() => setSheet('feedback')} />
-        <SheetRow icon="❓" label={t('menu.faq')} sublabel={t('menu.faq.sub')} onClick={() => setSheet('faq')} />
-        <SheetDivider />
-        <SheetRow icon="🚪" label={t('menu.logout')} danger onClick={() => setSheet(null)} right={null} />
-      </BottomSheet>
-
-      {sheet === 'profile' && <ProfileSheet onClose={() => setSheet(null)} />}
-      {sheet === 'support' && <SupportSheet onClose={() => setSheet(null)} />}
-      {sheet === 'feedback' && <FeedbackSheet onClose={() => setSheet(null)} />}
-      {sheet === 'faq' && <FAQSheet onClose={() => setSheet(null)} />}
-      {sheet === 'stats' && <StatsSheet onClose={() => setSheet(null)} />}
-      {sheet === 'referral' && <ReferralSheet onClose={() => setSheet(null)} />}
-      {sheet === 'invite' && (
+      {inviteOpen && (
         <InviteSheet
-          onClose={() => setSheet(null)}
+          onClose={() => setInviteOpen(false)}
           onInvite={(config) => {
-            setSheet(null)
+            setInviteOpen(false)
             onStartMatch(config)
           }}
         />
@@ -142,29 +97,96 @@ export function HomeScreen({
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 mt-4">
-          <StatChip label={t('stats.games')} value={stats.games} color="blue" />
-          <StatChip label={t('stats.wins')} value={stats.wins} color="green" />
-          <StatChip label={t('stats.losses')} value={stats.losses} color="red" />
-          <StatChip label={t('stats.draws')} value={stats.draws} color="yellow" />
-        </div>
-
-        {/* ЧАСТЬ 2, п.9 — «Показать статистику» */}
+        {/*
+          Правка 18: постоянных плиток со статистикой больше нет.
+          Кнопка раскрывает список показателей прямо здесь — без отдельного окна.
+        */}
         <button
-          onClick={() => setSheet('stats')}
-          className="tappable w-full mt-3 rounded-xl py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5"
+          onClick={() => setStatsOpen((v) => !v)}
+          aria-expanded={statsOpen}
+          className="relative tappable w-full mt-4 rounded-xl py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5"
           style={{ background: 'var(--tg-fill)', color: 'var(--tg-blue-light)' }}
         >
           <span>📊</span>
-          <span>{t('home.showStats')}</span>
+          <span>{statsOpen ? t('home.hideStats') : t('home.showStats')}</span>
+          <span
+            className="transition-transform duration-200"
+            style={{ display: 'inline-block', transform: statsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          >
+            ▾
+          </span>
+        </button>
+
+        {statsOpen && (
+          <div className="relative flex flex-col gap-2 mt-3 animate-fade-in">
+            <div className="grid grid-cols-4 gap-2">
+              <StatChip label={t('stats.games')} value={stats.games} color="blue" />
+              <StatChip label={t('stats.wins')} value={stats.wins} color="green" />
+              <StatChip label={t('stats.losses')} value={stats.losses} color="red" />
+              <StatChip label={t('stats.draws')} value={stats.draws} color="yellow" />
+            </div>
+
+            <div className="glass rounded-2xl p-4 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-tg-subtext text-xs uppercase tracking-wider">{t('stats.winrate')}</span>
+                <span className="text-tg-green font-black text-sm">{winrate}%</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden flex" style={{ background: 'var(--tg-fill-2)' }}>
+                <div style={{ width: `${(stats.wins / Math.max(1, stats.games)) * 100}%`, background: 'var(--tg-green)' }} />
+                <div style={{ width: `${(stats.draws / Math.max(1, stats.games)) * 100}%`, background: 'var(--tg-yellow)' }} />
+                <div style={{ width: `${(stats.losses / Math.max(1, stats.games)) * 100}%`, background: 'var(--tg-red)' }} />
+              </div>
+            </div>
+
+            <div
+              className="glass rounded-2xl px-4 py-3 flex items-center gap-3"
+              style={{ border: `1px solid ${withdrawUnlocked ? 'var(--tg-green)' : 'var(--tg-border)'}` }}
+            >
+              <span className="text-lg">{withdrawUnlocked ? '🔓' : '🔒'}</span>
+              <span className="text-xs font-medium text-tg-subtext leading-snug">
+                {withdrawUnlocked
+                  ? t('stats.withdrawUnlocked')
+                  : t('stats.toWithdraw', { count: matchesToWithdraw || ECONOMY.WITHDRAW_MIN_GAMES })}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Правка 19: блок начала игры сразу под профилем, выше бонуса и баланса */}
+      <div className="grid grid-cols-3 gap-2 animate-slide-up" style={{ animationDelay: '0.05s' }}>
+        <button
+          onClick={() => onOpponents('random')}
+          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-blue/30 glow-blue text-left"
+        >
+          <span className="text-2xl">⚔️</span>
+          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.findBattle')}</span>
+          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.findBattle.sub')}</span>
+        </button>
+        <button
+          onClick={onCreate}
+          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-green/30 glow-green text-left"
+        >
+          <span className="text-2xl">✏️</span>
+          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.createGame')}</span>
+          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.createGame.sub')}</span>
+        </button>
+        {/* Правка 8: кнопка остаётся и здесь, и на карточке каждого друга */}
+        <button
+          onClick={() => setInviteOpen(true)}
+          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-yellow/30 glow-yellow text-left"
+        >
+          <span className="text-2xl">🔗</span>
+          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.invite')}</span>
+          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.invite.sub')}</span>
         </button>
       </div>
 
-      {/* ЧАСТЬ 2, п.3 — ежедневный бонус */}
+      {/* Ежедневный бонус */}
       <div
         className="glass rounded-2xl p-4 flex items-center gap-3 animate-slide-up"
         style={{
-          animationDelay: '0.05s',
+          animationDelay: '0.1s',
           border: dailyBonusAvailable ? '1px solid var(--tg-green)' : '1px solid var(--tg-border)',
         }}
       >
@@ -199,8 +221,8 @@ export function HomeScreen({
         </button>
       </div>
 
-      {/* Баланс медяков */}
-      <div className="glass rounded-2xl p-4 flex items-center gap-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+      {/* Баланс медяков. Правка 16: «Пополнить» живёт только здесь, не в баре */}
+      <div className="glass rounded-2xl p-4 flex items-center gap-4 animate-slide-up" style={{ animationDelay: '0.15s' }}>
         <div
           className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
           style={{ background: 'rgba(255, 214, 10, 0.15)' }}
@@ -211,44 +233,17 @@ export function HomeScreen({
           <div className="text-tg-subtext text-xs font-medium uppercase tracking-wider">{t('home.balance')}</div>
           <div className="text-2xl font-black text-tg-yellow">{formatCoins(balance, lang)} 🪙</div>
         </div>
-        {/* TODO(backend): экран пополнения — звёзды (этап 2), TON Connect (этап 3) */}
-        <button className="tappable glass rounded-xl px-3 py-2 text-sm font-semibold text-tg-blue-light border border-tg-blue/30 flex-shrink-0">
+        <button
+          onClick={openTopUp}
+          className="tappable glass rounded-xl px-3 py-2 text-sm font-semibold text-tg-blue-light border border-tg-blue/30 flex-shrink-0"
+        >
           {t('home.topUp')}
         </button>
       </div>
 
-      {/* Три основных действия */}
-      <div className="grid grid-cols-3 gap-2 animate-slide-up" style={{ animationDelay: '0.15s' }}>
-        <button
-          onClick={onOpponents}
-          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-blue/30 glow-blue text-left"
-        >
-          <span className="text-2xl">⚔️</span>
-          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.findBattle')}</span>
-          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.findBattle.sub')}</span>
-        </button>
-        <button
-          onClick={onCreate}
-          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-green/30 glow-green text-left"
-        >
-          <span className="text-2xl">✏️</span>
-          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.createGame')}</span>
-          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.createGame.sub')}</span>
-        </button>
-        {/* ЧАСТЬ 2, п.10 — «Позвать в игру» открывает поп-ап с условиями */}
-        <button
-          onClick={() => setSheet('invite')}
-          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-yellow/30 glow-yellow text-left"
-        >
-          <span className="text-2xl">🔗</span>
-          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.invite')}</span>
-          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.invite.sub')}</span>
-        </button>
-      </div>
-
-      {/* Друзья */}
+      {/* Правка 5: открываем сразу вкладку «Друзья» */}
       <button
-        onClick={onOpponents}
+        onClick={() => onOpponents('friends')}
         className="tappable glass rounded-2xl p-4 flex items-center gap-4 animate-slide-up border border-tg-border"
         style={{ animationDelay: '0.2s' }}
       >
@@ -273,7 +268,7 @@ export function HomeScreen({
         </div>
       </button>
 
-      {/* ЧАСТЬ 2, п.5 — аккордеон последних игр */}
+      {/* Аккордеон последних игр */}
       <div className="animate-slide-up pb-2" style={{ animationDelay: '0.25s' }}>
         <button
           onClick={() => setGamesExpanded((v) => !v)}
@@ -305,7 +300,10 @@ export function HomeScreen({
               <span className="text-xl">{game.hand}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-tg-text truncate">{game.opp}</div>
-                <div className="text-tg-subtext text-xs">{formatRelative(game.minutesAgo, lang)}</div>
+                {/* Правка 6: количество раундов в карточке матча */}
+                <div className="text-tg-subtext text-xs">
+                  {formatRelative(game.minutesAgo, lang)} · {formatRounds(game.rounds, lang)}
+                </div>
               </div>
               <span
                 className={`text-sm font-bold font-mono ${
