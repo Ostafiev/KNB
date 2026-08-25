@@ -5,11 +5,24 @@
 ## Структура репозитория
 
 ```
-frontend/   Telegram Mini App (React 19 + TypeScript + Vite + Tailwind v4)
-docs/       Техзадание, чек-лист правок, исходный экспорт Figma Make
-backend/    (ЧАСТЬ 3 — ещё не реализовано)
-admin/      (ЧАСТЬ 6 — ещё не реализовано)
+frontend/           Telegram Mini App (React 19 + TypeScript + Vite + Tailwind v4)
+backend/            Сервер: API, экономика, матчмейкинг (Node + Fastify + PostgreSQL + Redis)
+docs/               Техзадание, чек-лист правок, исходный экспорт Figma Make
+docker-compose.yml  Весь стек одной командой
 ```
+
+Админ-панель (ЧАСТЬ 6) будет отдельным модулем внутри `backend/`.
+
+## Запуск всего стека
+
+```bash
+cp backend/.env.example backend/.env
+docker compose up -d
+docker compose exec backend node dist/db/migrate.js
+curl http://localhost:3000/health
+```
+
+Подробности по серверу — в [backend/README.md](backend/README.md).
 
 ## Запуск фронтенда
 

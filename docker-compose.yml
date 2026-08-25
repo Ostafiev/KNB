@@ -1,0 +1,60 @@
+# Весь стек одной командой:
+#
+#   cp backend/.env.example backend/.env
+#   docker compose up -d
+#   docker compose exec backend node dist/db/migrate.js
+#
+# Проверка: curl http://localhost:3000/health
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: knb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-knb_dev_password}
+      POSTGRES_DB: knb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Наружу только для локальной разработки. На сервере эту строку убрать.
+      - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U knb -d knb']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: postgres://knb:${POSTGRES_PASSWORD:-knb_dev_password}@postgres:5432/knb
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
