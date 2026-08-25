@@ -1,9 +1,16 @@
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import fastifyStatic from '@fastify/static'
 import { config } from './config.js'
 import { closePool, pool } from './db/client.js'
 import { closeRedis, connectRedis } from './lib/redis.js'
 import { healthRoutes } from './routes/health.js'
+import { authRoutes } from './routes/auth.js'
+import { meRoutes } from './routes/me.js'
+import { configRoutes } from './routes/config.js'
+import { eventsRoutes } from './routes/events.js'
 
 export async function buildServer() {
   const app = Fastify({
@@ -11,19 +18,49 @@ export async function buildServer() {
       level: config.LOG_LEVEL,
       transport: config.isProduction ? undefined : { target: 'pino-pretty' },
     },
-    // Telegram и рекламные сети шлют вебхуки с их собственными заголовками
     trustProxy: true,
   })
 
   await app.register(cors, { origin: config.corsOrigins, credentials: true })
 
   await app.register(healthRoutes)
+  await app.register(configRoutes)
+  await app.register(authRoutes)
+  await app.register(meRoutes)
+  await app.register(eventsRoutes)
 
-  app.get('/', async () => ({
-    name: 'knb-backend',
-    status: 'ok',
-    // TODO(этап 2): здесь появится GET /api/config с параметрами экономики
-  }))
+  /*
+   * Отдача самого приложения.
+   *
+   * Когда задан FRONTEND_DIST, сервер раздаёт собранный Mini App с того же
+   * адреса, что и API. Для проверки через туннель это важно: один адрес,
+   * одна ссылка в BotFather, никаких запретов между разными источниками.
+   */
+  const distPath = config.FRONTEND_DIST ? resolve(process.cwd(), config.FRONTEND_DIST) : null
+
+  if (distPath && existsSync(distPath)) {
+    await app.register(fastifyStatic, { root: distPath, wildcard: false })
+
+    // Любой неизвестный путь отдаёт приложение — иначе обновление страницы
+    // на внутреннем экране вернёт 404.
+    app.setNotFoundHandler((request, reply) => {
+      if (request.url.startsWith('/api') || request.url.startsWith('/health')) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+      return reply.sendFile('index.html')
+    })
+
+    app.log.info(`Mini App отдаётся из ${distPath}`)
+  } else {
+    app.get('/', async () => ({
+      name: 'knb-backend',
+      status: 'ok',
+      hint: distPath
+        ? `сборка приложения не найдена в ${distPath} — выполните npm run build во frontend`
+        : 'FRONTEND_DIST не задан: сервер отдаёт только API',
+    }))
+    if (distPath) app.log.warn(`FRONTEND_DIST указывает на ${distPath}, но папки нет`)
+  }
 
   return app
 }
@@ -37,6 +74,10 @@ async function start(): Promise<void> {
   } catch (error) {
     app.log.error({ err: error }, 'Не удалось подключиться к хранилищам')
     process.exit(1)
+  }
+
+  if (!config.TELEGRAM_BOT_TOKEN) {
+    app.log.warn('TELEGRAM_BOT_TOKEN не задан — вход через Telegram работать не будет')
   }
 
   const shutdown = async (signal: string): Promise<void> => {

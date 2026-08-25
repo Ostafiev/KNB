@@ -14,6 +14,7 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
   const {
     nickname,
     avatar,
+    avatarId,
     telegramUsername,
     telegramId,
     soundEnabled,
@@ -64,17 +65,17 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
             placeholder={nickname}
           />
           <div className="grid grid-cols-8 gap-1.5">
-            {AVATARS.map((a) => (
+            {AVATARS.map((option) => (
               <button
-                key={a}
-                onClick={() => setAvatar(a)}
+                key={option.id}
+                onClick={() => setAvatar(option.id)}
                 className="tappable aspect-square rounded-xl flex items-center justify-center text-lg transition-all duration-150"
                 style={{
-                  background: avatar === a ? 'var(--tg-blue)' : 'var(--tg-fill)',
-                  border: avatar === a ? '1px solid var(--tg-blue)' : '1px solid transparent',
+                  background: avatarId === option.id ? 'var(--tg-blue)' : 'var(--tg-fill)',
+                  border: avatarId === option.id ? '1px solid var(--tg-blue)' : '1px solid transparent',
                 }}
               >
-                {a}
+                {option.emoji}
               </button>
             ))}
           </div>

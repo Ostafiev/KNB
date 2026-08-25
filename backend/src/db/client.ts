@@ -1,5 +1,24 @@
-import { Pool, type PoolClient, type QueryResultRow } from 'pg'
+import pg, { Pool, type PoolClient, type QueryResultRow } from 'pg'
 import { config } from '../config.js'
+
+/*
+ * PostgreSQL по умолчанию отдаёт BIGINT строками: драйвер не рискует терять
+ * точность, ведь 64-битное число не влезает в обычное число JavaScript.
+ * Из-за этого id игрока приходил как "5", а не 5, и любое сравнение с числом
+ * молча давало ложь.
+ *
+ * Разбираем BIGINT числом, но со страховкой: если значение выйдет за предел
+ * безопасной точности (около 9·10^15), запрос упадёт с понятной ошибкой,
+ * а не отдаст тихо испорченное число.
+ */
+const INT8_OID = 20
+pg.types.setTypeParser(INT8_OID, (value: string) => {
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`значение BIGINT ${value} не помещается в число JavaScript без потери точности`)
+  }
+  return parsed
+})
 
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,

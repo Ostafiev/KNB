@@ -23,6 +23,16 @@ const schema = z.object({
   /** Секрет для подписи сессионных кук админки. */
   ADMIN_SESSION_SECRET: z.string().min(32).default('development-secret-change-me-please-32+'),
 
+  /** Секрет для подписи сессионных токенов игроков. */
+  AUTH_TOKEN_SECRET: z.string().min(32).default('development-auth-secret-change-me-32+'),
+
+  /**
+   * Папка со сборкой Mini App. Если задана, сервер отдаёт приложение сам —
+   * тогда фронтенд и API живут на одном адресе, и для проверки через туннель
+   * достаточно одной ссылки.
+   */
+  FRONTEND_DIST: z.string().optional(),
+
   /** Разрешённые источники запросов. Через запятую. */
   CORS_ORIGINS: z.string().default('*'),
 

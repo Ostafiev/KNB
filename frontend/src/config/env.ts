@@ -20,7 +20,15 @@ export const IS_DEV = import.meta.env.DEV
 export const SHOW_DEV_BAR =
   import.meta.env.VITE_DEV_BAR === 'on' || (IS_DEV && import.meta.env.VITE_DEV_BAR !== 'off')
 
-/** Базовый URL API. TODO(backend): подставить реальный адрес из ЧАСТИ 3. */
+/**
+ * Разрешён ли вход без Telegram (служебный маршрут /api/auth/dev).
+ * Нужен, чтобы открывать приложение в обычном браузере при разработке
+ * и в review-сборке. Привязан к тому же флагу, что и DEV-бар: в релизе
+ * ни того, ни другого нет.
+ */
+export const ALLOW_DEV_LOGIN = SHOW_DEV_BAR
+
+/** Базовый URL API. */
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 /** Юзернейм бота — для формирования реферальных и match-ссылок. */

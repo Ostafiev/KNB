@@ -1,9 +1,9 @@
 # Весь стек одной командой:
 #
-#   cp backend/.env.example backend/.env
-#   docker compose up -d
-#   docker compose exec backend node dist/db/migrate.js
+#   cp backend/.env.example backend/.env      (и вписать токен бота)
+#   docker compose up -d --build
 #
+# Миграции применяются сами при старте.
 # Проверка: curl http://localhost:3000/health
 
 services:
@@ -40,7 +40,10 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      args:
+        VITE_BOT_USERNAME: ${BOT_USERNAME:-knb_bot}
     restart: unless-stopped
     env_file:
       - backend/.env

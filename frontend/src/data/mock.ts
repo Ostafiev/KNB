@@ -20,11 +20,32 @@ export const FRIENDS: Player[] = [
   { id: 8, name: 'Паша', avatar: '🧑‍🎸', rating: 880, bet: 50, rounds: 1, online: true },
 ]
 
-/** Набор готовых аватаров для шага онбординга (ЧАСТЬ 3, п.7 — 10-15 вариантов). */
-export const AVATARS = [
-  '🎮', '👨‍💻', '👩‍🎨', '🧑‍🚀', '👩‍💼', '🧑‍🍳', '🤠', '🧝‍♀️',
-  '🧑‍🎸', '🦊', '🐼', '🐉', '🦉', '🐺', '🦁',
-] as const
+/**
+ * Набор готовых аватаров (ЧАСТЬ 3, п.7 — 10-15 вариантов).
+ * Сервер хранит идентификатор, приложение показывает эмодзи: так набор
+ * можно переоформить, не трогая сохранённые профили.
+ */
+export const AVATARS: { id: string; emoji: string }[] = [
+  { id: 'gamepad', emoji: '🎮' },
+  { id: 'dev', emoji: '👨‍💻' },
+  { id: 'artist', emoji: '👩‍🎨' },
+  { id: 'astronaut', emoji: '🧑‍🚀' },
+  { id: 'manager', emoji: '👩‍💼' },
+  { id: 'chef', emoji: '🧑‍🍳' },
+  { id: 'cowboy', emoji: '🤠' },
+  { id: 'elf', emoji: '🧝‍♀️' },
+  { id: 'rocker', emoji: '🧑‍🎸' },
+  { id: 'fox', emoji: '🦊' },
+  { id: 'panda', emoji: '🐼' },
+  { id: 'dragon', emoji: '🐉' },
+  { id: 'owl', emoji: '🦉' },
+  { id: 'wolf', emoji: '🐺' },
+  { id: 'lion', emoji: '🦁' },
+]
+
+export function avatarEmoji(id: string): string {
+  return AVATARS.find((a) => a.id === id)?.emoji ?? '🎮'
+}
 
 export interface RecentGame {
   opp: string
