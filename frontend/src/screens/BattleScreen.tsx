@@ -16,18 +16,33 @@ const FLASH_TOTAL_MS = FLASH_STEP_MS * 4
 
 type Phase = 'intro' | 'choose' | 'final-shake'
 
+/**
+ * Живой матч. Часы раунда идут от серверного времени: подкручивать их
+ * на телефоне бессмысленно, истечение объявляет сервер.
+ */
+export interface LiveBattle {
+  /** Момент, когда сервер закроет раунд. */
+  endsAt: number | null
+  /** Соперник уже сходил — фигуру мы при этом не знаем. */
+  opponentMoved: boolean
+  /** Ход, подтверждённый сервером. */
+  confirmedChoice: HandChoice | null
+}
+
 export function BattleScreen({
   config,
   roundNumber,
   score,
   onChoice,
   onSurrender,
+  live,
 }: {
   config: MatchConfig
   roundNumber: number
   score: { player: number; opponent: number }
   onChoice: (choice: HandChoice) => void
   onSurrender: () => void
+  live?: LiveBattle
 }) {
   const t = useT()
   const { nickname, avatar, soundEnabled, setSoundEnabled } = useAppState()
@@ -38,14 +53,28 @@ export function BattleScreen({
   const [selected, setSelected] = useState<HandChoice | null>(null)
   const [idleShaking, setIdleShaking] = useState(false)
   const [roundTimer, setRoundTimer] = useState<number>(ECONOMY.ROUND_SECONDS)
+  // В живом матче время вышло — ход больше не принимается, ждём вердикт сервера.
+  const [expired, setExpired] = useState(false)
   const [showSurrender, setShowSurrender] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
 
   // Защита от двойного резолва: таймаут и клик могут прийти почти одновременно.
   const committed = useRef(false)
 
-  // Вступление: две вспышки слова, затем фаза выбора
+  /*
+   * Вступление: две вспышки слова, затем фаза выбора.
+   *
+   * В живом матче часы раунда уже идут, поэтому вспышку показываем только
+   * перед первым раундом — иначе вступление съедало бы время на ход.
+   */
   useEffect(() => {
+    if (live && roundNumber > 1) {
+      setPhase('choose')
+      setIdleShaking(true)
+      const stop = setTimeout(() => setIdleShaking(false), 2000)
+      return () => clearTimeout(stop)
+    }
+
     const timers = [
       setTimeout(() => setFlash(1), 0),
       setTimeout(() => setFlash(2), FLASH_STEP_MS),
@@ -73,8 +102,33 @@ export function BattleScreen({
     setTimeout(() => onChoice(choice), FINAL_SHAKE_MS)
   }
 
-  // Таймер раунда; по истечении ход делается случайно
+  /*
+   * Часы раунда.
+   *
+   * В живом матче отсчёт идёт от времени, которое назвал сервер, и по нулю
+   * ничего не подставляется: по правилам не успел выбрать — раунд проигран.
+   * В демо-режиме (сервера нет) остаётся прежнее поведение со случайным ходом,
+   * иначе витрина зависала бы на нуле.
+   */
   useEffect(() => {
+    if (!live) return
+    if (live.endsAt === null) return
+
+    const tick = (): void => {
+      const left = Math.ceil((live.endsAt! - Date.now()) / 1000)
+      setRoundTimer(Math.max(0, left))
+      if (left <= 0 && !expired) {
+        setExpired(true)
+        if (!committed.current) hapticNotify('warning')
+      }
+    }
+    tick()
+    const timer = setInterval(tick, 250)
+    return () => clearInterval(timer)
+  }, [live, expired])
+
+  useEffect(() => {
+    if (live) return
     if (phase !== 'choose') return
     if (roundTimer <= 0) {
       hapticNotify('warning')
@@ -84,7 +138,7 @@ export function BattleScreen({
     const timer = setTimeout(() => setRoundTimer((v) => v - 1), 1000)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, roundTimer])
+  }, [phase, roundTimer, live])
 
   const timerUrgent = roundTimer <= 3
   const finalShake = phase === 'final-shake'
@@ -173,18 +227,24 @@ export function BattleScreen({
             <div className="text-xs text-tg-subtext">{t('common.opponent')}</div>
             <div className="text-sm font-semibold text-tg-subtext truncate max-w-36">{config.opponentName}</div>
           </div>
-          <div className="ml-auto flex items-center gap-1 glass rounded-lg px-2 py-1">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-1.5 h-1.5 rounded-full"
-                style={{
-                  background: 'var(--tg-subtext)',
-                  animation: `pulse-core 1.2s ${i * 0.3}s ease-in-out infinite`,
-                }}
-              />
-            ))}
-          </div>
+          {live?.opponentMoved ? (
+            <div className="ml-auto glass rounded-lg px-2 py-1 text-xs font-semibold text-tg-green">
+              {t('battle.opponentReady')}
+            </div>
+          ) : (
+            <div className="ml-auto flex items-center gap-1 glass rounded-lg px-2 py-1">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: 'var(--tg-subtext)',
+                    animation: `pulse-core 1.2s ${i * 0.3}s ease-in-out infinite`,
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -264,7 +324,7 @@ export function BattleScreen({
             <button
               key={choice}
               onClick={() => phase === 'choose' && commit(choice)}
-              disabled={phase !== 'choose' || selected !== null}
+              disabled={phase !== 'choose' || selected !== null || expired}
               className={`tappable rounded-2xl py-5 flex flex-col items-center gap-2 transition-all duration-200 border-2 ${
                 selected === choice ? 'border-tg-blue glow-blue scale-95 glass-strong' : 'glass border-tg-border'
               } ${phase !== 'choose' && selected !== choice ? 'opacity-40' : ''}`}
@@ -274,6 +334,12 @@ export function BattleScreen({
             </button>
           ))}
         </div>
+
+        {expired && !selected && (
+          <div className="mt-3 text-center text-tg-red text-sm font-semibold animate-fade-in">
+            {t('battle.timeUp')}
+          </div>
+        )}
 
         {selected && (
           <div className="mt-3 text-center text-tg-subtext text-sm animate-fade-in">

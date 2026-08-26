@@ -3,20 +3,33 @@ import { useAppChrome } from '../components/AppMenu'
 import { useI18n, useT } from '../i18n'
 import { formatRounds } from '../lib/format'
 import { ECONOMY } from '../config/economy'
+import { BOT_USERNAME } from '../config/env'
+import { shareLink } from '../telegram/sdk'
 
 export function WaitingScreen({
   onCancel,
   bet,
   rounds,
+  inviteStartParam,
 }: {
   onCancel: () => void
   bet: number
   rounds: number
+  /**
+   * Матч с другом ждёт не случайного соперника, а конкретного человека
+   * по ссылке. Тогда вместо «ищем соперника» показываем саму ссылку.
+   */
+  inviteStartParam?: string | null
 }) {
   const t = useT()
   const { lang } = useI18n()
   const { topBar, menu } = useAppChrome()
   const [dots, setDots] = useState(0)
+  const [copied, setCopied] = useState(false)
+
+  const inviteUrl = inviteStartParam
+    ? `https://t.me/${BOT_USERNAME}?startapp=${inviteStartParam}`
+    : null
 
   useEffect(() => {
     const timer = setInterval(() => setDots((d) => (d + 1) % 4), 500)
@@ -55,11 +68,38 @@ export function WaitingScreen({
 
         <div className="flex flex-col items-center gap-2">
           <h2 className="text-2xl font-black text-tg-text text-center">
-            {t('waiting.searching')}
+            {inviteUrl ? t('waiting.invite.title') : t('waiting.searching')}
             {'.'.repeat(dots)}
           </h2>
-          <p className="text-tg-subtext text-sm text-center max-w-xs">{t('waiting.hint')}</p>
+          <p className="text-tg-subtext text-sm text-center max-w-xs">
+            {inviteUrl ? t('waiting.invite.hint') : t('waiting.hint')}
+          </p>
         </div>
+
+        {inviteUrl && (
+          <div className="w-full flex flex-col gap-2 animate-fade-in">
+            <div className="glass rounded-2xl px-4 py-3 text-tg-subtext text-xs break-all text-center">
+              {inviteUrl}
+            </div>
+            <button
+              onClick={() => shareLink(inviteUrl, t('waiting.invite.hint'))}
+              className="tappable w-full py-3.5 rounded-2xl font-bold text-tg-text glass-strong border border-tg-blue/40"
+            >
+              {t('waiting.invite.share')}
+            </button>
+            <button
+              onClick={() => {
+                void navigator.clipboard
+                  ?.writeText(inviteUrl)
+                  .then(() => setCopied(true))
+                  .catch(() => setCopied(false))
+              }}
+              className="tappable w-full py-3 rounded-2xl font-semibold text-tg-subtext glass border border-tg-border"
+            >
+              {copied ? t('waiting.invite.copied') : t('waiting.invite.copy')}
+            </button>
+          </div>
+        )}
         {/*
           Правка 12: плитки «142 в поиске» и «~8s среднее время» убраны.
           На старте эти цифры были бы выдуманными.

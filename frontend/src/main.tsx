@@ -4,6 +4,7 @@ import App from './App'
 import { I18nProvider } from './i18n'
 import { ThemeProvider } from './theme/ThemeProvider'
 import { AppStateProvider } from './state/AppState'
+import { LiveMatchProvider } from './state/LiveMatch'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <I18nProvider>
         <AppStateProvider>
-          <App />
+          <LiveMatchProvider>
+            <App />
+          </LiveMatchProvider>
         </AppStateProvider>
       </I18nProvider>
     </ThemeProvider>

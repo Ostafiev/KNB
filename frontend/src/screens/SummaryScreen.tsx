@@ -20,6 +20,7 @@ export function SummaryScreen({
   rounds,
   score,
   ratingDelta,
+  opponentLeft = false,
   onNextBattle,
   onRematch,
   onMenu,
@@ -29,6 +30,8 @@ export function SummaryScreen({
   rounds: RoundResult[]
   score: { player: number; opponent: number }
   ratingDelta: number
+  /** Матч закончился тем, что соперник вышел, а не доигранными раундами. */
+  opponentLeft?: boolean
   onNextBattle: () => void
   onRematch: (config: MatchConfig) => void
   onMenu: () => void
@@ -102,6 +105,15 @@ export function SummaryScreen({
       <div className="text-center">
         <div className="text-tg-subtext text-xs uppercase tracking-widest mb-1">{t('summary.eyebrow')}</div>
         <h1 className="text-2xl font-black text-tg-text">{t('summary.title')}</h1>
+        {/*
+          Победа из-за выхода соперника — не то же самое, что победа в бою.
+          Показываем это честно, иначе счёт вроде 1:1 выглядел бы ошибкой.
+        */}
+        {opponentLeft && (
+          <div className="mt-2 inline-block glass rounded-xl px-3 py-1.5 text-tg-subtext text-xs">
+            {t('battle.opponentLeft')}
+          </div>
+        )}
       </div>
 
       {/* Табло: соперник слева, игрок справа */}

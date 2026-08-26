@@ -118,6 +118,8 @@ interface AppStateValue extends AppStateShape {
   setAvatar: (avatarId: string) => void
   setSoundEnabled: (enabled: boolean) => void
   recordMatch: (args: { outcome: 'win' | 'lose' | 'draw'; bet: number; ratingDelta: number }) => void
+  /** Перечитывает профиль с сервера — после матча баланс и рейтинг считает он. */
+  refreshMe: () => Promise<void>
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null)
@@ -235,6 +237,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }))
   }, [])
 
+  /**
+   * Забирает свежий профиль с сервера. Вызывается после матча: баланс,
+   * рейтинг и статистику считает сервер, и подгонять их на клиенте
+   * означало бы рано или поздно разойтись с правдой.
+   */
+  const refreshMe = useCallback(async () => {
+    if (!onlineRef.current) return
+    try {
+      const { user } = await api.getMe()
+      setState((prev) => fromServer(user, prev))
+    } catch {
+      /* связь пропала — покажем то, что есть, обновимся при следующем входе */
+    }
+  }, [])
+
   const setNickname = useCallback(
     (nickname: string) => {
       patch({ nickname })
@@ -277,6 +294,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setAvatar,
       setSoundEnabled,
       recordMatch,
+      refreshMe,
     }
   }, [
     state,
@@ -289,6 +307,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setAvatar,
     setSoundEnabled,
     recordMatch,
+    refreshMe,
   ])
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>

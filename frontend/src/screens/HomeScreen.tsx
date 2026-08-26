@@ -7,7 +7,8 @@ import { useAppState } from '../state/AppState'
 import { ECONOMY } from '../config/economy'
 import { rankFor } from '../lib/game'
 import { formatCoins, formatRelative, formatRounds } from '../lib/format'
-import { FRIENDS, RECENT_GAMES } from '../data/mock'
+import { FRIENDS } from '../data/mock'
+import { useRecentGames } from '../state/useRecentGames'
 import { hapticNotify } from '../telegram/sdk'
 import type { MatchConfig, Tab } from '../types'
 
@@ -41,7 +42,8 @@ export function HomeScreen({
 
   const rank = rankFor(rating)
   const friendsOnline = FRIENDS.filter((f) => f.online).length
-  const visibleGames = gamesExpanded ? RECENT_GAMES : RECENT_GAMES.slice(0, 3)
+  const { games: recentGames } = useRecentGames()
+  const visibleGames = gamesExpanded ? recentGames : recentGames.slice(0, 3)
   const winrate = stats.games > 0 ? Math.round((stats.wins / stats.games) * 100) : 0
 
   return (
@@ -268,8 +270,12 @@ export function HomeScreen({
         </div>
       </button>
 
-      {/* Аккордеон последних игр */}
-      <div className="animate-slide-up pb-2" style={{ animationDelay: '0.25s' }}>
+      {/* Аккордеон последних игр. Пока матчей нет, блок не показываем вовсе:
+          пустой заголовок выглядел бы поломкой. */}
+      <div
+        className="animate-slide-up pb-2"
+        style={{ animationDelay: '0.25s', display: recentGames.length === 0 ? 'none' : undefined }}
+      >
         <button
           onClick={() => setGamesExpanded((v) => !v)}
           className="tappable w-full flex items-center justify-between mb-2 px-1"
@@ -280,7 +286,11 @@ export function HomeScreen({
           </span>
           <div className="flex items-center gap-1.5">
             <span className="text-tg-subtext text-xs">
-              {gamesExpanded ? t('home.collapse') : t('home.more', { count: RECENT_GAMES.length - 3 })}
+              {gamesExpanded
+                ? t('home.collapse')
+                : recentGames.length > 3
+                  ? t('home.more', { count: recentGames.length - 3 })
+                  : ''}
             </span>
             <span
               className="text-tg-subtext text-xs transition-transform duration-200"

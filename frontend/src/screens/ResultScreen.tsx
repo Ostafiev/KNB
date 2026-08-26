@@ -15,12 +15,18 @@ export function ResultScreen({
   score,
   isLastRound,
   onContinue,
+  autoAdvance = false,
 }: {
   round: RoundResult
   config: MatchConfig
   score: { player: number; opponent: number }
   isLastRound: boolean
   onContinue: () => void
+  /**
+   * В живом матче следующий раунд открывает сервер, а не кнопка.
+   * Кнопку прячем, иначе она обещала бы то, чего игрок не решает.
+   */
+  autoAdvance?: boolean
 }) {
   const t = useT()
   const [showResult, setShowResult] = useState(false)
@@ -114,9 +120,24 @@ export function ResultScreen({
       </div>
 
       <div className="w-full pb-4">
-        <PrimaryButton onClick={onContinue}>
-          {isLastRound ? t('result.toSummary') : t('result.nextRound')}
-        </PrimaryButton>
+        {autoAdvance ? (
+          <div className="h-14 flex items-center justify-center gap-2 text-tg-subtext text-sm">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  background: 'var(--tg-subtext)',
+                  animation: `pulse-core 1.2s ${i * 0.3}s ease-in-out infinite`,
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <PrimaryButton onClick={onContinue}>
+            {isLastRound ? t('result.toSummary') : t('result.nextRound')}
+          </PrimaryButton>
+        )}
       </div>
     </div>
   )

@@ -42,6 +42,10 @@ function writeToken(token: string): void {
   }
 }
 
+export function getToken(): string | null {
+  return readToken()
+}
+
 export function clearToken(): void {
   try {
     localStorage.removeItem(TOKEN_KEY)
@@ -129,6 +133,69 @@ export interface ServerEconomy {
   minReactionMs: number
 }
 
+/** Раунд глазами игрока. Чужая фигура появляется только вместе с результатом. */
+export interface RoundView {
+  number: number
+  display: number
+  myChoice: 'rock' | 'scissors' | 'paper' | null
+  opponentChoice: 'rock' | 'scissors' | 'paper' | null
+  opponentMoved: boolean
+  result: 'win' | 'loss' | 'draw' | null
+  myTimedOut: boolean
+  opponentTimedOut: boolean
+  startedAt: string
+  resolvedAt: string | null
+}
+
+export interface MatchPlayerView {
+  id: number
+  nickname: string
+  avatarId: string
+  rating: number
+}
+
+/** Матч глазами игрока — всё уже пересчитано сервером под него. */
+export interface MatchView {
+  id: number
+  mode: 'random' | 'friend'
+  status: string
+  bet: number
+  roundsTotal: number
+  winsNeeded: number
+  condition: string | null
+  me: MatchPlayerView
+  opponent: MatchPlayerView | null
+  myScore: number
+  opponentScore: number
+  currentRound: number
+  rounds: RoundView[]
+  finished: boolean
+  won: boolean | null
+  ratingDelta: number
+  coinsDelta: number
+  opponentLeft: boolean
+  iLeft: boolean
+  startedAt: string | null
+  finishedAt: string | null
+}
+
+export interface TransactionView {
+  id: number
+  type: string
+  amount: number
+  balanceAfter: number
+  comment: string | null
+  createdAt: string
+}
+
+export interface ReferralSummaryView {
+  invited: number
+  paid: number
+  pending: number
+  earned: number
+  friends: { id: number; nickname: string; avatarId: string; bonusPaid: boolean; joinedAt: string }[]
+}
+
 // ─── Методы ──────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -149,7 +216,7 @@ export const api = {
         ? await request<{ token: string; user: ServerUser }>('/auth/dev', {
             method: 'POST',
             auth: false,
-            body: {},
+            body: devIdentity(),
           })
         : (() => {
             throw new ApiUnavailable('приложение открыто вне Telegram')
@@ -185,6 +252,40 @@ export const api = {
     return request('/me/daily-bonus', { method: 'POST' })
   },
 
+  /** Приглашение другу: матч ждёт второго игрока по ссылке. */
+  createMatch(input: {
+    mode: 'random' | 'friend'
+    bet: number
+    rounds: number
+    condition?: string
+  }): Promise<{ match: MatchView; startParam: string }> {
+    return request('/matches', { method: 'POST', body: input })
+  },
+
+  joinMatch(matchId: number): Promise<{ match: MatchView }> {
+    return request(`/matches/${matchId}/join`, { method: 'POST' })
+  },
+
+  getMatch(matchId: number): Promise<{ match?: MatchView; invite?: unknown }> {
+    return request(`/matches/${matchId}`)
+  },
+
+  leaveMatch(matchId: number): Promise<{ match?: MatchView }> {
+    return request(`/matches/${matchId}/leave`, { method: 'POST' })
+  },
+
+  getMyMatches(limit = 10): Promise<{ matches: MatchView[] }> {
+    return request(`/me/matches?limit=${limit}`)
+  },
+
+  getTransactions(limit = 50): Promise<{ transactions: TransactionView[] }> {
+    return request(`/me/transactions?limit=${limit}`)
+  },
+
+  getReferrals(): Promise<ReferralSummaryView> {
+    return request('/me/referrals')
+  },
+
   /** Отправка событий. Ошибки глотаются: аналитика не должна ломать игру. */
   async track(name: string, props?: Record<string, unknown>): Promise<void> {
     try {
@@ -196,6 +297,29 @@ export const api = {
 
   /** Реферальная ссылка, если сервер сообщил код приглашения. */
   startParam: getStartParam(),
+}
+
+/**
+ * Кто входит служебным маршрутом.
+ *
+ * По умолчанию — один и тот же тестовый игрок. Чтобы открыть двух разных
+ * игроков в двух окнах и сыграть матч между ними, достаточно добавить к
+ * адресу `?dev=2`: номер запоминается и дальше подставляется сам.
+ */
+function devIdentity(): { telegramId: number; name: string } {
+  let slot = 1
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('dev')
+    if (fromUrl) {
+      slot = Math.max(1, Number(fromUrl) || 1)
+      localStorage.setItem('knb.devSlot', String(slot))
+    } else {
+      slot = Number(localStorage.getItem('knb.devSlot')) || 1
+    }
+  } catch {
+    /* приватный режим — остаёмся первым игроком */
+  }
+  return { telegramId: 999_000_000 + slot, name: `Тестовый игрок ${slot}` }
 }
 
 /** Идентификатор захода — склеивает события одной сессии. */

@@ -5,10 +5,11 @@ import { ProfileSheet } from '../sheets/ProfileSheet'
 import { ReferralSheet } from '../sheets/ReferralSheet'
 import { TopUpSheet } from '../sheets/TopUpSheet'
 import { SupportSheet, FeedbackSheet, FAQSheet } from '../sheets/MiscSheets'
+import { HistorySheet } from '../sheets/HistorySheet'
 import { useT } from '../i18n'
 import { ECONOMY } from '../config/economy'
 
-type MenuSub = 'profile' | 'referral' | 'support' | 'feedback' | 'faq' | null
+type MenuSub = 'profile' | 'referral' | 'history' | 'support' | 'feedback' | 'faq' | null
 
 /**
  * Главное меню приложения.
@@ -35,6 +36,12 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
           sublabel={t('menu.referral.sub', { amount: ECONOMY.REFERRAL_INVITER_BONUS })}
           onClick={() => setSub('referral')}
         />
+        <SheetRow
+          icon="🧾"
+          label={t('history.title')}
+          sublabel={t('menu.history.sub')}
+          onClick={() => setSub('history')}
+        />
         <SheetRow icon="💛" label={t('menu.support')} sublabel={t('menu.support.sub')} onClick={() => setSub('support')} />
         <SheetRow icon="✉️" label={t('menu.feedback')} sublabel={t('menu.feedback.sub')} onClick={() => setSub('feedback')} />
         <SheetRow icon="❓" label={t('menu.faq')} sublabel={t('menu.faq.sub')} onClick={() => setSub('faq')} />
@@ -42,6 +49,7 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
 
       {sub === 'profile' && <ProfileSheet onClose={closeAll} />}
       {sub === 'referral' && <ReferralSheet onClose={closeAll} />}
+      {sub === 'history' && <HistorySheet onClose={closeAll} />}
       {sub === 'support' && <SupportSheet onClose={closeAll} />}
       {sub === 'feedback' && <FeedbackSheet onClose={closeAll} />}
       {sub === 'faq' && <FAQSheet onClose={closeAll} />}

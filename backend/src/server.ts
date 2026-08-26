@@ -11,6 +11,8 @@ import { authRoutes } from './routes/auth.js'
 import { meRoutes } from './routes/me.js'
 import { configRoutes } from './routes/config.js'
 import { eventsRoutes } from './routes/events.js'
+import { matchRoutes } from './routes/matches.js'
+import { socketRoutes, recoverActiveMatches } from './ws/socket.js'
 
 export async function buildServer() {
   const app = Fastify({
@@ -28,6 +30,8 @@ export async function buildServer() {
   await app.register(authRoutes)
   await app.register(meRoutes)
   await app.register(eventsRoutes)
+  await app.register(matchRoutes)
+  await app.register(socketRoutes)
 
   /*
    * Отдача самого приложения.
@@ -74,6 +78,14 @@ async function start(): Promise<void> {
   } catch (error) {
     app.log.error({ err: error }, 'Не удалось подключиться к хранилищам')
     process.exit(1)
+  }
+
+  // Часы раундов живут в памяти процесса: после перезапуска поднимаем их заново.
+  try {
+    const restored = await recoverActiveMatches()
+    if (restored > 0) app.log.info(`восстановлены часы ${restored} идущих матчей`)
+  } catch (error) {
+    app.log.error({ err: error }, 'не удалось восстановить идущие матчи')
   }
 
   if (!config.TELEGRAM_BOT_TOKEN) {
