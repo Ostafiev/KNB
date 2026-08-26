@@ -53,6 +53,8 @@ export interface MatchView {
   opponentLeft: boolean
   /** Матч закончился тем, что вышел сам игрок. */
   iLeft: boolean
+  /** Матч отменён и ставки возвращены — играть было некому. */
+  cancelled: boolean
   startedAt: string | null
   finishedAt: string | null
 }
@@ -87,15 +89,17 @@ export async function buildMatchView(
   const opponentScore = iAmFirst ? match.score2 : match.score1
   const ratingDelta = iAmFirst ? match.rating1_delta : match.rating2_delta
 
-  const finished = match.status === 'finished'
-  const won = finished ? match.winner_id === viewerId : null
+  // Отменённый начатый матч для приложения тоже закончен: экран боя закрывается.
+  const cancelled = match.status === 'cancelled' && match.started_at !== null
+  const finished = match.status === 'finished' || cancelled
+  const won = match.status === 'finished' ? match.winner_id === viewerId : null
 
   /*
    * Свободных медяков по итогам: победитель забирает обе ставки, то есть
    * выходит в плюс на размер ставки; проигравший теряет свою.
    */
   let coinsDelta = 0
-  if (finished && match.bet_amount > 0) {
+  if (match.status === 'finished' && match.bet_amount > 0) {
     coinsDelta = won ? match.bet_amount : -match.bet_amount
   }
 
@@ -153,6 +157,7 @@ export async function buildMatchView(
     coinsDelta,
     opponentLeft,
     iLeft,
+    cancelled,
     startedAt: match.started_at,
     finishedAt: match.finished_at,
   }

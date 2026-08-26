@@ -175,6 +175,8 @@ export interface MatchView {
   coinsDelta: number
   opponentLeft: boolean
   iLeft: boolean
+  /** Матч отменён и ставки возвращены — играть было некому. */
+  cancelled: boolean
   startedAt: string | null
   finishedAt: string | null
 }

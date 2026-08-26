@@ -274,6 +274,7 @@ export const en: Record<TranslationKey, string> = {
 
   // ─── Summary ──────────────────────────────────────────────────────────────
   'summary.eyebrow': 'Match results',
+  'summary.cancelled': 'Match cancelled — bets refunded',
   'summary.title': 'Match complete',
   'summary.win': 'VICTORY',
   'summary.lose': 'DEFEAT',

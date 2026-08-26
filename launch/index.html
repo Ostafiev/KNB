@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>&#1050;&#1053;&#1041;</title>
+<style>
+  :root {
+    --bg: #17212b;
+    --bg2: #232e3c;
+    --text: #e8edf2;
+    --subtext: #7d8b99;
+    --blue: #2a9fd6;
+    --blue-light: #64d2ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .mesh {
+    position: fixed; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(60% 40% at 20% 10%, rgba(42,159,214,0.18), transparent 70%),
+      radial-gradient(50% 40% at 85% 85%, rgba(42,202,92,0.12), transparent 70%);
+  }
+  .card { position: relative; text-align: center; padding: 24px; }
+  .hands { font-size: 56px; letter-spacing: 6px; margin-bottom: 18px; }
+  .hands span { display: inline-block; animation: float 2.4s ease-in-out infinite; }
+  .hands span:nth-child(2) { animation-delay: .2s; }
+  .hands span:nth-child(3) { animation-delay: .4s; }
+  @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+  h1 {
+    font-size: 40px; font-weight: 900; margin: 0 0 6px; letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--blue-light), var(--blue));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .tagline { color: var(--subtext); font-size: 14px; margin: 0 0 28px; }
+  .bar {
+    width: 180px; height: 4px; border-radius: 999px; margin: 0 auto;
+    background: var(--bg2); overflow: hidden;
+  }
+  .bar i {
+    display: block; height: 100%; width: 40%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--blue), var(--blue-light));
+    animation: slide 1.4s ease-in-out infinite;
+  }
+  @keyframes slide { 0% { transform: translateX(-110%) } 100% { transform: translateX(360%) } }
+  .note {
+    margin-top: 20px; color: var(--subtext); font-size: 13px; line-height: 1.5;
+    max-width: 260px; opacity: 0; transition: opacity .4s ease;
+  }
+  .note.show { opacity: 1; }
+  button {
+    margin-top: 18px; padding: 12px 22px; border: 0; border-radius: 14px;
+    background: var(--blue); color: #06121a; font-size: 15px; font-weight: 700;
+    font-family: inherit; cursor: pointer; display: none;
+  }
+</style>
+</head>
+<body>
+  <div class="mesh"></div>
+  <div class="card">
+    <div class="hands"><span>&#9994;</span><span>&#9996;&#65039;</span><span>&#9995;</span></div>
+    <h1>&#1050;&#1053;&#1041;</h1>
+    <p class="tagline">&#1050;&#1072;&#1084;&#1077;&#1085;&#1100; &#183; &#1053;&#1086;&#1078;&#1085;&#1080;&#1094;&#1099; &#183; &#1041;&#1091;&#1084;&#1072;&#1075;&#1072;</p>
+    <div class="bar"><i></i></div>
+    <p class="note" id="note"></p>
+    <button id="retry">&#1055;&#1086;&#1087;&#1088;&#1086;&#1073;&#1086;&#1074;&#1072;&#1090;&#1100; &#1089;&#1085;&#1086;&#1074;&#1072;</button>
+  </div>
+
+<script>
+/*
+ * Прихожая игры.
+ *
+ * Бесплатный сервер засыпает после простоя, и первый вход упирался в чужую
+ * техническую заставку. Эта страница всегда бодрая: она сразу показывает наш
+ * экран загрузки, тихо будит сервер и, как только он ответил, передаёт
+ * управление приложению.
+ *
+ * Всё, что Telegram передал в адресе (подпись игрока, тема, параметр ссылки),
+ * лежит в search и hash — переносим их дальше без изменений, иначе
+ * приложение не узнает, кто пришёл.
+ */
+var APP = 'https://knb-ztmt.onrender.com';
+
+var note = document.getElementById('note');
+var retry = document.getElementById('retry');
+var startedAt = Date.now();
+var stopped = false;
+
+function go() {
+  location.replace(APP + '/' + location.search + location.hash);
+}
+
+function say(text) {
+  note.textContent = text;
+  note.classList.add('show');
+}
+
+function ping() {
+  if (stopped) return;
+
+  fetch(APP + '/health', { cache: 'no-store' })
+    .then(function (response) {
+      if (response.ok) { stopped = true; go(); return; }
+      again();
+    })
+    .catch(again);
+}
+
+function again() {
+  if (stopped) return;
+
+  var waited = Date.now() - startedAt;
+
+  if (waited > 4000 && !note.classList.contains('show')) {
+    say('Будим сервер — это занимает около минуты');
+  }
+
+  if (waited > 150000) {
+    stopped = true;
+    say('Сервер не отвечает');
+    retry.style.display = 'inline-block';
+    return;
+  }
+
+  setTimeout(ping, 1500);
+}
+
+retry.onclick = function () {
+  stopped = false;
+  startedAt = Date.now();
+  retry.style.display = 'none';
+  note.classList.remove('show');
+  ping();
+};
+
+ping();
+</script>
+</body>
+</html>

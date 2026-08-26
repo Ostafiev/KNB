@@ -21,6 +21,7 @@ export function SummaryScreen({
   score,
   ratingDelta,
   opponentLeft = false,
+  cancelled = false,
   onNextBattle,
   onRematch,
   onMenu,
@@ -32,6 +33,8 @@ export function SummaryScreen({
   ratingDelta: number
   /** Матч закончился тем, что соперник вышел, а не доигранными раундами. */
   opponentLeft?: boolean
+  /** Матч отменён: играть было некому, ставки вернулись. */
+  cancelled?: boolean
   onNextBattle: () => void
   onRematch: (config: MatchConfig) => void
   onMenu: () => void
@@ -109,11 +112,15 @@ export function SummaryScreen({
           Победа из-за выхода соперника — не то же самое, что победа в бою.
           Показываем это честно, иначе счёт вроде 1:1 выглядел бы ошибкой.
         */}
-        {opponentLeft && (
+        {cancelled ? (
+          <div className="mt-2 inline-block glass rounded-xl px-3 py-1.5 text-tg-subtext text-xs">
+            {t('summary.cancelled')}
+          </div>
+        ) : opponentLeft ? (
           <div className="mt-2 inline-block glass rounded-xl px-3 py-1.5 text-tg-subtext text-xs">
             {t('battle.opponentLeft')}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Табло: соперник слева, игрок справа */}

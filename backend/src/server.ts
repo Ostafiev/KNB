@@ -13,6 +13,8 @@ import { configRoutes } from './routes/config.js'
 import { eventsRoutes } from './routes/events.js'
 import { matchRoutes } from './routes/matches.js'
 import { socketRoutes, recoverActiveMatches } from './ws/socket.js'
+import { adminRoutes } from './admin/routes.js'
+import { ensureAdminsFromEnv } from './admin/auth.js'
 
 export async function buildServer() {
   const app = Fastify({
@@ -32,6 +34,7 @@ export async function buildServer() {
   await app.register(eventsRoutes)
   await app.register(matchRoutes)
   await app.register(socketRoutes)
+  await app.register(adminRoutes)
 
   /*
    * Отдача самого приложения.
@@ -48,7 +51,11 @@ export async function buildServer() {
     // Любой неизвестный путь отдаёт приложение — иначе обновление страницы
     // на внутреннем экране вернёт 404.
     app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith('/api') || request.url.startsWith('/health')) {
+      if (
+        request.url.startsWith('/api') ||
+        request.url.startsWith('/health') ||
+        request.url.startsWith('/admin')
+      ) {
         return reply.code(404).send({ error: 'not_found' })
       }
       return reply.sendFile('index.html')
@@ -78,6 +85,13 @@ async function start(): Promise<void> {
   } catch (error) {
     app.log.error({ err: error }, 'Не удалось подключиться к хранилищам')
     process.exit(1)
+  }
+
+  try {
+    const admins = await ensureAdminsFromEnv()
+    if (admins > 0) app.log.info(`заведено администраторов: ${admins}`)
+  } catch (error) {
+    app.log.error({ err: error }, 'не удалось завести администраторов из настроек')
   }
 
   // Часы раундов живут в памяти процесса: после перезапуска поднимаем их заново.

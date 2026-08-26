@@ -545,6 +545,49 @@ async function main(): Promise<void> {
       timedOutView.rounds[0],
     )
 
+    // ─── Матч, который некому играть ─────────────────────────────────────────
+    section('Матч, в котором никто не ходит')
+
+    await setRoundSeconds(2)
+    alice.clear()
+    bob.clear()
+    const beforeGhost = await balanceOf(alice.userId)
+
+    const ghostInvite = await rest(alice.token, 'POST', '/api/matches', {
+      mode: 'friend',
+      bet: 25,
+      rounds: 3,
+    })
+    const ghostId = (ghostInvite.body.match as { id: number }).id
+    await rest(bob.token, 'POST', `/api/matches/${ghostId}/join`)
+    await alice.wait('match_found')
+    await bob.wait('match_found')
+
+    // Дальше не ходит никто: так выглядит матч, из которого оба ушли.
+    const ghostFinish = await alice.wait('match_finished', 25_000)
+    const ghostView = ghostFinish.match as { cancelled: boolean; status: string }
+    check(ghostView.cancelled === true, 'матч без ходов закрывается сам, а не крутится вечно')
+
+    check(
+      (await balanceOf(alice.userId)) === beforeGhost,
+      'ставки вернулись обоим: игры не было',
+      { before: beforeGhost, after: await balanceOf(alice.userId) },
+    )
+    check(
+      (await balanceOf(bob.userId)) === (await ledgerSum(bob.userId)),
+      'после отмены баланс сходится с журналом',
+    )
+
+    const ghostRounds = await query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM rounds WHERE match_id = $1',
+      [ghostId],
+    )
+    check(
+      Number(ghostRounds[0]?.count) <= 4,
+      'пустых раундов создано немного, а не сотни',
+      ghostRounds[0]?.count,
+    )
+
     // ─── Переподключение ─────────────────────────────────────────────────────
     section('Переподключение к идущему матчу')
 

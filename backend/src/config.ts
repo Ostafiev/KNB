@@ -36,6 +36,22 @@ const schema = z.object({
   /** Разрешённые источники запросов. Через запятую. */
   CORS_ORIGINS: z.string().default('*'),
 
+  /**
+   * Кто имеет доступ к админке. Telegram id через запятую.
+   *
+   * Первый администратор появляется только так: панель управляет балансами
+   * игроков, и заводить в неё вход через саму панель было бы кругом.
+   * Значение читается при старте, записи в admins заводятся автоматически.
+   */
+  ADMIN_TELEGRAM_IDS: z.string().default(''),
+
+  /**
+   * Юзернейм бота без @. Нужен кнопке «Войти через Telegram» в админке.
+   * На Render эта же переменная уходит в сборку Mini App.
+   */
+  BOT_USERNAME: z.string().optional(),
+  VITE_BOT_USERNAME: z.string().optional(),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 })
 
@@ -51,6 +67,10 @@ export const config = {
   ...parsed.data,
   isProduction: parsed.data.NODE_ENV === 'production',
   corsOrigins: parsed.data.CORS_ORIGINS === '*' ? true : parsed.data.CORS_ORIGINS.split(',').map((s) => s.trim()),
+  botUsername: (parsed.data.BOT_USERNAME ?? parsed.data.VITE_BOT_USERNAME ?? '').replace(/^@/, ''),
+  adminTelegramIds: parsed.data.ADMIN_TELEGRAM_IDS.split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isSafeInteger(value) && value > 0),
 }
 
 export type Config = typeof config

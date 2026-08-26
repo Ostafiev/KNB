@@ -347,7 +347,13 @@ export default function App() {
   const lastRound = activeRounds[activeRounds.length - 1]
 
   const outcomeForSummary: Outcome =
-    liveOn && live.match ? (live.match.won ? 'win' : 'lose') : matchOutcome
+    liveOn && live.match
+      ? live.match.cancelled
+        ? 'draw'
+        : live.match.won
+          ? 'win'
+          : 'lose'
+      : matchOutcome
   const deltaForSummary = liveOn && live.match ? live.match.ratingDelta : ratingDelta
 
   const screens = (
@@ -434,6 +440,7 @@ export default function App() {
             score={activeScore}
             ratingDelta={deltaForSummary}
             opponentLeft={liveOn ? (live.match?.opponentLeft ?? false) : false}
+            cancelled={liveOn ? (live.match?.cancelled ?? false) : false}
             onNextBattle={nextBattle}
             onRematch={startMatch}
             onMenu={() => {

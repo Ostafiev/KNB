@@ -392,6 +392,42 @@ export async function expireRound(matchId: number, roundNumber: number): Promise
     const result: RoundResult =
       p1Missing && p2Missing ? 'draw' : p1Missing ? 'player2' : 'player1'
 
+    /*
+     * Не сходил никто. Если так случилось второй раз подряд — за экранами
+     * пусто, и матч надо закрыть, иначе он будет плодить раунды до скончания
+     * века. Ставки возвращаем: игры не было.
+     */
+    if (p1Missing && p2Missing) {
+      const { rows: recent } = await client.query<{ player1_timed_out: boolean; player2_timed_out: boolean }>(
+        `SELECT player1_timed_out, player2_timed_out
+           FROM rounds
+          WHERE match_id = $1 AND resolved_at IS NOT NULL
+          ORDER BY round_number DESC
+          LIMIT $2`,
+        [matchId, ABANDONED_BY_BOTH_LIMIT - 1],
+      )
+      const everyoneGone =
+        recent.length >= ABANDONED_BY_BOTH_LIMIT - 1 &&
+        recent.every((r) => r.player1_timed_out && r.player2_timed_out)
+
+      if (everyoneGone || round.round_number >= roundHardLimit(match.rounds_total)) {
+        await client.query(
+          `UPDATE rounds SET result = 'draw', resolved_at = now() WHERE id = $1`,
+          [round.id],
+        )
+        const cancelled = await cancelMatch(client, match, 'оба игрока не отвечают')
+        return {
+          match: cancelled,
+          round: updated,
+          resolved: true,
+          nextRound: null,
+          continues: false,
+          finished: true,
+          suspiciouslyFast: false,
+        }
+      }
+    }
+
     const settled = await settleRound(client, match, updated, result)
     return { ...settled, suspiciouslyFast: false }
   })
@@ -531,6 +567,65 @@ export async function openNextRound(
     const round = await openRound(client, match, nextNumber)
     return { match, round }
   })
+}
+
+/**
+ * Отменяет матч и возвращает ставки.
+ *
+ * Нужно там, где играть уже некому: оба игрока пропали, и раунд за раундом
+ * закрывается по таймеру ничьёй. Без этого матч крутился бы вечно, плодя
+ * пустые раунды. Никто не играл — никто и не должен потерять медяки.
+ */
+async function cancelMatch(
+  client: PoolClient,
+  match: MatchRow,
+  reason: string,
+): Promise<MatchRow> {
+  if (match.bet_amount > 0) {
+    for (const userId of [match.player1_id, match.player2_id!]) {
+      try {
+        await postEntry(client, {
+          userId,
+          type: 'bet_refund',
+          amount: match.bet_amount,
+          matchId: match.id,
+          externalId: `match:${match.id}:refund:${userId}`,
+          comment: 'возврат ставки: матч отменён',
+        })
+      } catch (error) {
+        if (!(error instanceof DuplicateOperation)) throw error
+      }
+    }
+  }
+
+  const { rows } = await client.query<MatchRow>(
+    `UPDATE matches
+        SET status = 'cancelled', finished_at = now(), finish_reason = NULL
+      WHERE id = $1
+      RETURNING *`,
+    [match.id],
+  )
+
+  await client.query(
+    `INSERT INTO events (user_id, name, props) VALUES ($1, 'match_cancelled', $2)`,
+    [match.player1_id, JSON.stringify({ matchId: match.id, reason })],
+  )
+
+  return rows[0]
+}
+
+/**
+ * Сколько раундов подряд закончились ничьёй, потому что не сходил никто.
+ * Два таких подряд означают, что за экранами никого нет.
+ */
+const ABANDONED_BY_BOTH_LIMIT = 2
+
+/**
+ * Страховка от бесконечного матча: ничьи не двигают счёт, поэтому теоретически
+ * играть можно вечно. Живым людям этого предела не достичь.
+ */
+function roundHardLimit(roundsTotal: number): number {
+  return roundsTotal * 5 + 10
 }
 
 /** Elo. K и стартовый рейтинг берутся из app_config, их правит админка. */
