@@ -18,6 +18,9 @@ export function ConsentScreen({ onAccept }: { onAccept: () => void }) {
   const blocks = [
     { icon: '🔞', title: t('consent.age.title'), body: t('consent.age.body') },
     { icon: '📄', title: t('consent.terms.title'), body: t('consent.terms.body') },
+    // Про программу-соперника говорим здесь, до первого боя, а не мелким
+    // шрифтом где-то в правилах: человек должен знать, с кем играет.
+    { icon: '🤖', title: t('consent.bots.title'), body: t('consent.bots.body') },
   ]
 
   return (

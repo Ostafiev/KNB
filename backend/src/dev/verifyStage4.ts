@@ -146,6 +146,26 @@ async function setRoundSeconds(seconds: number): Promise<void> {
   invalidateEconomyCache()
 }
 
+/**
+ * Боты на время этой проверки выключены.
+ *
+ * Здесь проверяются два живых игрока друг против друга, а включённый бот
+ * успел бы подхватить заявку раньше второго человека — и проверка ловила бы
+ * не то, что нужно. Поведение самих ботов проверяется отдельно, в этапе 6.
+ */
+async function setBotsEnabled(enabled: boolean): Promise<void> {
+  await query('UPDATE app_config SET value = $1 WHERE key = $2', [
+    JSON.stringify(enabled ? 1 : 0),
+    'bots_enabled',
+  ])
+  await query(
+    `UPDATE matches m SET status = 'cancelled', finished_at = now()
+       FROM users u
+      WHERE u.id = m.player1_id AND u.is_bot
+        AND m.status = 'searching' AND m.player2_id IS NULL`,
+  )
+}
+
 /** Ходы, дающие заранее известный результат. */
 const BEATS: Record<string, string> = { rock: 'scissors', scissors: 'paper', paper: 'rock' }
 const LOSES_TO: Record<string, string> = { rock: 'paper', scissors: 'rock', paper: 'scissors' }
@@ -153,6 +173,10 @@ const LOSES_TO: Record<string, string> = { rock: 'paper', scissors: 'rock', pape
 async function main(): Promise<void> {
   await connectRedis()
   await redis.flushdb()
+
+  // Выключаем до запуска сервера: иначе первый же проход ботов успеет
+  // опубликовать бои, и подбор свёл бы Алису с ботом, а не с Борисом.
+  await setBotsEnabled(false)
 
   const app = await buildServer()
   await app.listen({ port: 0, host: '127.0.0.1' })
@@ -776,6 +800,7 @@ async function main(): Promise<void> {
     invitee.close()
   } finally {
     await setRoundSeconds(10)
+    await setBotsEnabled(true)
     await app.close()
     await redis.quit()
     await pool.end()

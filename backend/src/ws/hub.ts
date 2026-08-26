@@ -39,6 +39,18 @@ const roundTimers = new Map<number, NodeJS.Timeout>()
  */
 const RESULT_PAUSE_MS = 2500
 
+/**
+ * Кто-то должен узнать, что раунд открылся, помимо игроков: за бота ходит
+ * сервер, и решение о фигуре принимается именно в этот момент. Хук вместо
+ * прямого вызова — чтобы часы раундов ничего не знали про ботов.
+ */
+type RoundOpenHook = (match: MatchRow, round: RoundRow) => void
+let roundOpenHook: RoundOpenHook | null = null
+
+export function setRoundOpenHook(hook: RoundOpenHook): void {
+  roundOpenHook = hook
+}
+
 export function registerConnection(userId: number, send: Send): () => void {
   const connection: Connection = { userId, send }
   let set = connections.get(userId)
@@ -149,6 +161,7 @@ async function onRoundExpired(matchId: number, roundNumber: number): Promise<voi
 export async function announceMatchStart(match: MatchRow, round: RoundRow): Promise<void> {
   const endsAt = await armRoundTimer(match, round)
   await broadcastMatch(match, 'match_found', { roundEndsAt: endsAt, roundNumber: round.round_number })
+  roundOpenHook?.(match, round)
 }
 
 /** Соперник сходил. Фигуру не передаём — только сам факт. */
@@ -195,6 +208,7 @@ async function startNextRound(matchId: number): Promise<void> {
       roundEndsAt: endsAt,
       roundNumber: opened.round.round_number,
     })
+    roundOpenHook?.(opened.match, opened.round)
   } catch (error) {
     console.error('не удалось открыть следующий раунд', error)
   }

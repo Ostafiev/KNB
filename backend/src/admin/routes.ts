@@ -14,6 +14,7 @@ import {
   setSessionCookie,
   verifyLoginWidget,
 } from './auth.js'
+import { getBotSettings } from '../domain/bots.js'
 import { card, coins, esc, layout, num, pager, table, when } from './html.js'
 import * as q from './queries.js'
 
@@ -654,7 +655,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/admin/config', { preHandler: requireAdmin }, async (request, reply) => {
     const saved = (request.query as { saved?: string }).saved
-    const rows = await q.appConfig()
+    // Настройки ботов живут в своём разделе — там у них есть смысл и контекст.
+    const rows = (await q.appConfig()).filter((row) => !row.key.startsWith('bots_'))
 
     const body = rows.map(
       (row) => `<tr>
@@ -721,6 +723,195 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     )
 
     return reply.redirect(`/admin/config?saved=${encodeURIComponent(parsed.data.key)}`)
+  })
+
+  // ─── Боты ──────────────────────────────────────────────────────────────────
+
+  app.get('/admin/bots', { preHandler: requireAdmin }, async (request, reply) => {
+    const saved = (request.query as { saved?: string }).saved
+    const [stats, list, settings, configRows] = await Promise.all([
+      q.botOverview(),
+      q.botList(),
+      getBotSettings(),
+      q.appConfig(),
+    ])
+
+    const botKeys = configRows.filter((row) => row.key.startsWith('bots_'))
+
+    const winRate = stats.decidedRounds > 0 ? (stats.botWins / stats.decidedRounds) * 100 : 0
+    // Отклонение от честной половины в стандартных отклонениях.
+    const z =
+      stats.decidedRounds > 0
+        ? (stats.botWins - stats.decidedRounds / 2) / (Math.sqrt(stats.decidedRounds) / 2)
+        : 0
+
+    const verdict =
+      stats.decidedRounds < 50
+        ? 'Сыграно слишком мало, чтобы судить.'
+        : Math.abs(z) < 2
+          ? 'В пределах случайности — так и должно быть.'
+          : 'Отклонение великовато. Стоит посмотреть матчи ботов вручную.'
+
+    const rows = list.map(
+      (bot) => `<tr>
+        <td>${esc(bot.nickname)}</td>
+        <td class="num">${num(bot.rating)}</td>
+        <td class="num">${num(bot.coins_balance)}</td>
+        <td class="num">${num(bot.games_played)}</td>
+        <td class="num">${num(bot.wins)}:${num(bot.losses)}</td>
+        <td><a href="/admin/matches?user=${bot.id}">матчи</a></td>
+      </tr>`,
+    )
+
+    const settingRows = botKeys.map(
+      (row) => `<tr>
+        <td><code>${esc(row.key)}</code><br><span class="dim">${esc(row.description ?? '')}</span></td>
+        <td>
+          <form class="inline" method="post" action="/admin/bots/config">
+            <input type="hidden" name="key" value="${esc(row.key)}">
+            <input name="value" value="${esc(row.value)}" style="width:120px" required>
+            <button class="ghost">Сохранить</button>
+          </form>
+        </td>
+      </tr>`,
+    )
+
+    return reply.type('text/html; charset=utf-8').send(
+      layout({
+        title: 'Боты',
+        active: '/admin/bots',
+        admin: request.currentAdmin!,
+        body: `
+          <h1>Боты</h1>
+          <p class="sub">Бот выбирает фигуру в момент открытия раунда — до хода соперника —
+             и выбирает её наугад. Против случайного соперника выиграть чаще половины
+             невозможно, поэтому боты не выкачивают медяки и не печатают их.</p>
+
+          ${saved ? `<div class="note">Сохранено: <code>${esc(saved)}</code></div>` : ''}
+
+          <div class="cards">
+            ${card('Состояние', settings.enabled ? 'включены' : 'выключены', `${stats.total} профилей`)}
+            ${card('Ждут соперника', num(stats.openMatches), `${stats.activeMatches} матчей идёт`)}
+            ${card('Матчей сыграно', num(stats.finishedMatches))}
+            ${card(
+              'Побед в раундах',
+              stats.decidedRounds > 0 ? `${winRate.toFixed(1)}%` : '—',
+              `${num(stats.botWins)} из ${num(stats.decidedRounds)}`,
+            )}
+          </div>
+
+          <div class="note ${Math.abs(z) >= 2 && stats.decidedRounds >= 50 ? 'warn' : ''}">
+            Честная доля — 50%. Сейчас ${stats.decidedRounds > 0 ? winRate.toFixed(1) + '%' : '—'},
+            отклонение ${z.toFixed(1)} σ. ${esc(verdict)}
+          </div>
+
+          <h2>Настройки</h2>
+          <p class="sub">Выключатель — <code>bots_enabled</code>: 1 включено, 0 выключено.
+             Изменения применяются в течение двадцати секунд, перезапуск не нужен.</p>
+          ${table(['Параметр', 'Значение'], settingRows)}
+
+          <h2>Профили</h2>
+          ${table(['Имя', '#Рейтинг', '#Медяки', '#Игр', '#П:Пор', ''], rows)}
+        `,
+      }),
+    )
+  })
+
+  app.post('/admin/bots/config', { preHandler: requireAdmin }, async (request, reply) => {
+    const parsed = z
+      .object({ key: z.string().min(1).max(64), value: z.string().min(1).max(32) })
+      .safeParse(request.body)
+
+    if (!parsed.success || !parsed.data.key.startsWith('bots_')) {
+      return reply.redirect('/admin/bots')
+    }
+
+    const numeric = Number(parsed.data.value)
+    if (!Number.isFinite(numeric) || numeric < 0) return reply.redirect('/admin/bots')
+
+    const before = (await q.appConfig()).find((row) => row.key === parsed.data.key)
+    if (!before) return reply.redirect('/admin/bots')
+
+    await query(
+      'UPDATE app_config SET value = $2::jsonb, updated_by = $3, updated_at = now() WHERE key = $1',
+      [parsed.data.key, JSON.stringify(numeric), request.currentAdmin!.id],
+    )
+
+    await audit(
+      request.currentAdmin!.id,
+      'bots_config_change',
+      { type: 'app_config', id: null },
+      {
+        before: { [parsed.data.key]: before.value },
+        after: { [parsed.data.key]: numeric },
+        ip: request.ip,
+      },
+    )
+
+    return reply.redirect(`/admin/bots?saved=${encodeURIComponent(parsed.data.key)}`)
+  })
+
+  // ─── Подозрительные ────────────────────────────────────────────────────────
+
+  app.get('/admin/suspects', { preHandler: requireAdmin }, async (request, reply) => {
+    const { min } = z
+      .object({ min: z.coerce.number().int().min(10).max(500).default(30) })
+      .parse(request.query ?? {})
+
+    const rows = await q.suspects(min)
+
+    const body = rows.map((row) => {
+      const total = row.rock + row.scissors + row.paper || 1
+      const share = (value: number): string => `${Math.round((value / total) * 100)}%`
+
+      /*
+       * Насколько ровно ходит игрок. У человека разброс времени большой:
+       * то полторы секунды, то шесть. Ровный разброс — признак автомата.
+       */
+      const even = row.sdMs > 0 && row.sdMs < 400
+      const strong = row.z >= 3
+
+      return `<tr>
+        <td><a href="/admin/players/${row.id}">${esc(row.nickname)}</a></td>
+        <td class="num">${num(row.decided)}</td>
+        <td class="num ${strong ? 'neg' : ''}">${(row.winRate * 100).toFixed(1)}%</td>
+        <td class="num ${strong ? 'neg' : 'dim'}">${row.z.toFixed(1)} σ</td>
+        <td class="num ${even ? 'neg' : 'dim'}">${num(row.avgMs)} ± ${num(row.sdMs)} мс</td>
+        <td class="dim">${share(row.rock)} / ${share(row.scissors)} / ${share(row.paper)}</td>
+        <td>${strong ? '<span class="tag bad">проверить</span>' : ''}
+            ${even ? '<span class="tag bad">ровный ход</span>' : ''}</td>
+      </tr>`
+    })
+
+    return reply.type('text/html; charset=utf-8').send(
+      layout({
+        title: 'Подозрительные',
+        active: '/admin/suspects',
+        admin: request.currentAdmin!,
+        body: `
+          <h1>Подозрительные</h1>
+          <p class="sub">Камень-ножницы-бумага между людьми обязаны сходиться к половине побед.
+             Обыграть человека можно, только предсказывая его привычки — а этим занимается
+             не человек, а программа. Второй признак — ровное время хода.</p>
+
+          <div class="note">Столбец «σ» показывает, на сколько отклонений от честной монеты
+             ушёл результат. До 2 σ — обычная случайность. 3 σ и больше на сотнях раундов
+             случайностью уже не объясняются. Это повод открыть матчи и посмотреть,
+             а не приговор.</div>
+
+          <form class="inline" method="get" action="/admin/suspects" style="margin-bottom:16px">
+            <label class="dim">минимум решённых раундов</label>
+            <input name="min" type="number" value="${min}" min="10" max="500" style="width:100px">
+            <button>Показать</button>
+          </form>
+
+          ${table(
+            ['Игрок', '#Раундов', '#Побед', '#Отклонение', '#Время хода', 'Камень/ножницы/бумага', ''],
+            body,
+          )}
+        `,
+      }),
+    )
   })
 
   // ─── Журнал действий ───────────────────────────────────────────────────────

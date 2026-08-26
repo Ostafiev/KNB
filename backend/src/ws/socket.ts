@@ -14,6 +14,7 @@ import {
   type RoundRow,
 } from '../domain/match.js'
 import { cancelOpen, enqueue, setLivenessCheck } from '../domain/matchmaking.js'
+import { isBotId, startBotRuntime } from './botRuntime.js'
 import { recordEvent } from '../domain/events.js'
 import {
   announceMatchStart,
@@ -51,7 +52,13 @@ const clientMessage = z.discriminatedUnion('type', [
 export async function socketRoutes(app: FastifyInstance): Promise<void> {
   await app.register(websocket, { options: { maxPayload: 4096 } })
 
-  setLivenessCheck(isOnline)
+  /*
+   * Бот «на связи» всегда: у него нет соединения, но его открытый бой должен
+   * быть виден в списке, иначе никто не сможет к нему присоединиться.
+   */
+  setLivenessCheck((userId) => isOnline(userId) || isBotId(userId))
+
+  await startBotRuntime(app)
 
   app.get('/ws', { websocket: true }, (socket, request) => {
     const token = (request.query as { token?: string }).token

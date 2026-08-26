@@ -40,6 +40,9 @@ export const en: Record<TranslationKey, string> = {
   'consent.age.body': 'The game involves in-game currency wagers and is for adults only.',
   'consent.terms.title': 'Terms and privacy',
   'consent.terms.body': 'You accept the terms of use and consent to processing of your Telegram profile data.',
+  'consent.bots.title': 'Your opponent may be a program',
+  'consent.bots.body':
+    'When few players are around, your opponent may be a program. It picks its figure at random and cannot see your move.',
   'consent.terms.link': 'Read the terms of use',
   'consent.privacy.link': 'Privacy policy',
   'consent.checkbox': 'I am 18 or older and I accept the terms of use and privacy policy',

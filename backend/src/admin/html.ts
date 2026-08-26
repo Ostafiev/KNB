@@ -90,6 +90,8 @@ const NAV: { href: string; label: string }[] = [
   { href: '/admin/matches', label: 'Матчи' },
   { href: '/admin/transactions', label: 'Операции' },
   { href: '/admin/funnel', label: 'Поведение' },
+  { href: '/admin/suspects', label: 'Подозрительные' },
+  { href: '/admin/bots', label: 'Боты' },
   { href: '/admin/config', label: 'Экономика' },
   { href: '/admin/audit', label: 'Журнал' },
 ]
