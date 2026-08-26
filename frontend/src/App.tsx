@@ -56,7 +56,8 @@ function roundsFromServer(view: MatchView): RoundResult[] {
 }
 
 export default function App() {
-  const { consentAccepted, acceptConsent, balance, rating, recordMatch } = useAppState()
+  const { consentAccepted, acceptConsent, balance, rating, recordMatch, status, demoPlayAllowed } =
+    useAppState()
   const live = useLiveMatch()
 
   const [screen, setScreen] = useState<Screen>('splash')
@@ -161,6 +162,16 @@ export default function App() {
         return
       }
 
+      /*
+       * Внутри Telegram играть можно только по-настоящему. Если сервера нет,
+       * честно говорим об этом: подставить выдуманного соперника значило бы
+       * соврать игроку, что он играет с человеком.
+       */
+      if (!liveOn && !demoPlayAllowed) {
+        setLiveError(status === 'connecting' ? 'Подключаемся к серверу…' : 'Нет связи с сервером')
+        return
+      }
+
       settled.current = false
       setMatch(config)
       setRounds([])
@@ -187,7 +198,7 @@ export default function App() {
 
       go('waiting')
     },
-    [balance, go, liveOn, live],
+    [balance, go, liveOn, live, demoPlayAllowed, status],
   )
 
   /** Правка 14: «Следующий бой» — новый соперник, условия те же, без подтверждений. */
@@ -204,6 +215,29 @@ export default function App() {
     })
   }, [match.bet, match.roundsTotal, startMatch, live])
 
+  /** Войти в конкретный открытый бой из списка. */
+  const joinOpenMatch = useCallback(
+    (matchId: number) => {
+      setInviteLink(null)
+      void live
+        .join(matchId)
+        .then(() => go('battle'))
+        .catch((error: unknown) => {
+          const code = (error as { code?: string }).code
+          if (code === 'insufficient_funds') {
+            setInsufficientFor(ECONOMY.MIN_BET)
+            return
+          }
+          setLiveError(
+            code === 'match_full' || code === 'match_not_joinable'
+              ? 'В этот бой уже вошёл другой игрок'
+              : 'Не удалось войти в бой',
+          )
+        })
+    },
+    [live, go],
+  )
+
   const leaveMatch = useCallback(() => {
     if (liveOn) live.leave()
     go('home')
@@ -212,8 +246,9 @@ export default function App() {
   // ─── Демо-режим ────────────────────────────────────────────────────────────
 
   // Подбор соперника без сервера: через паузу подставляем игрока из списка.
+  // Только вне Telegram — см. demoPlayAllowed.
   useEffect(() => {
-    if (liveOn) return
+    if (liveOn || !demoPlayAllowed) return
     if (screen !== 'waiting') return
     const timer = setTimeout(() => {
       setMatch((prev) => {
@@ -229,7 +264,7 @@ export default function App() {
       go('battle')
     }, 2500)
     return () => clearTimeout(timer)
-  }, [screen, go, liveOn])
+  }, [screen, go, liveOn, demoPlayAllowed])
 
   /** Завершение матча в демо-режиме: считаем Elo и пишем результат локально. */
   const settleMatch = useCallback(
@@ -339,7 +374,13 @@ export default function App() {
         )}
 
         {screen === 'opponents' && (
-          <OpponentsScreen initialTab={opponentsTab} onSelect={startMatch} onBack={() => go('home')} />
+          <OpponentsScreen
+            initialTab={opponentsTab}
+            onSelect={startMatch}
+            onJoinOpen={joinOpenMatch}
+            onCreate={() => go('create')}
+            onBack={() => go('home')}
+          />
         )}
 
         {screen === 'create' && <CreateScreen onCreate={startMatch} onBack={() => go('home')} />}

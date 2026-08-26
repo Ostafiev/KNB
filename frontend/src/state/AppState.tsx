@@ -3,7 +3,8 @@ import type { PlayerStats } from '../types'
 import { ECONOMY, applyServerEconomy } from '../config/economy'
 import { BOT_USERNAME } from '../config/env'
 import { getTelegramUser } from '../telegram/sdk'
-import { api, ApiUnavailable, clearToken, type ServerUser } from '../api/client'
+import { api, ApiError, ApiUnavailable, clearToken, type ServerUser } from '../api/client'
+import { isTelegram } from '../telegram/sdk'
 import { avatarEmoji } from '../data/mock'
 
 /*
@@ -104,6 +105,14 @@ function fromServer(user: ServerUser, previous: AppStateShape): AppStateShape {
 
 interface AppStateValue extends AppStateShape {
   status: ConnectionStatus
+  /**
+   * Можно ли играть с выдуманным соперником.
+   *
+   * Только вне Telegram — в статичном превью или в браузере при разработке.
+   * Внутри бота подсовывать бота вместо живого игрока нельзя: заказчик
+   * решит, что играет с человеком, а это неправда.
+   */
+  demoPlayAllowed: boolean
   /** Эмодзи текущего аватара — идентификатор хранится, эмодзи показывается. */
   avatar: string
   dailyBonusAvailable: boolean
@@ -132,11 +141,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const onlineRef = useRef(false)
   onlineRef.current = online
 
-  // Подключение к серверу при запуске
+  /*
+   * Подключение к серверу.
+   *
+   * Бесплатный сервер засыпает после простоя и на первых запросах отвечает
+   * ошибкой, пока просыпается. Сдаваться после первой неудачи нельзя: игрок
+   * попадал бы в демо-режим с выдуманным соперником, думая, что играет
+   * по-настоящему. Поэтому пробуем несколько раз с растущей паузой.
+   */
   useEffect(() => {
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
 
-    void (async () => {
+    const RETRY_STEPS_MS = [1000, 2000, 4000, 8000, 15_000, 20_000, 20_000, 20_000]
+
+    const connect = async (attempt: number): Promise<void> => {
       try {
         const [{ economy }, user] = await Promise.all([api.getConfig(), api.login()])
         if (cancelled) return
@@ -146,16 +165,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         void api.track('app_open', { isNew: user.isNew })
       } catch (error) {
         if (cancelled) return
-        if (!(error instanceof ApiUnavailable)) {
-          // Токен мог протухнуть или игрока забанили — начинаем с чистого листа
-          clearToken()
+
+        // Токен протух или игрока забанили — повторять бессмысленно.
+        const fatal =
+          error instanceof ApiError && (error.status === 401 || error.status === 403)
+        if (fatal) clearToken()
+
+        // Сервер просыпается (5xx) или связь моргнула — пробуем ещё.
+        const retriable =
+          !fatal && (error instanceof ApiUnavailable || (error instanceof ApiError && error.status >= 500))
+
+        if (retriable && attempt < RETRY_STEPS_MS.length) {
+          setStatus('connecting')
+          timer = setTimeout(() => void connect(attempt + 1), RETRY_STEPS_MS[attempt])
+          return
         }
+
         setStatus('offline')
       }
-    })()
+    }
+
+    void connect(0)
 
     return () => {
       cancelled = true
+      if (timer) clearTimeout(timer)
     }
   }, [])
 
@@ -281,6 +315,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     return {
       ...state,
       status,
+      demoPlayAllowed: !isTelegram(),
       avatar: avatarEmoji(state.avatarId),
       dailyBonusAvailable: state.dailyBonusClaimedOn !== todayKey(),
       withdrawUnlocked: matchesToWithdraw === 0 && state.balance >= ECONOMY.WITHDRAW_MIN_COINS,

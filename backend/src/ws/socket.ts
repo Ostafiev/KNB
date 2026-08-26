@@ -13,7 +13,7 @@ import {
   type MatchRow,
   type RoundRow,
 } from '../domain/match.js'
-import { dequeue, enqueue, setLivenessCheck } from '../domain/matchmaking.js'
+import { cancelOpen, enqueue, setLivenessCheck } from '../domain/matchmaking.js'
 import { recordEvent } from '../domain/events.js'
 import {
   announceMatchStart,
@@ -79,12 +79,12 @@ export async function socketRoutes(app: FastifyInstance): Promise<void> {
       unregister()
       // Из очереди выходим сразу: держать в подборе того, кто закрыл
       // приложение, значит подсовывать сопернику матч без соперника.
-      void dequeue(userId)
+      void cancelOpen(userId)
     })
 
     socket.on('error', () => {
       unregister()
-      void dequeue(userId)
+      void cancelOpen(userId)
     })
   })
 }
@@ -120,7 +120,7 @@ async function handleMessage(app: FastifyInstance, userId: number, raw: string):
       }
 
       case 'queue_cancel':
-        await dequeue(userId)
+        await cancelOpen(userId)
         sendToUser(userId, { type: 'queue_left' })
         return
 

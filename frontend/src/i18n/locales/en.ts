@@ -187,6 +187,9 @@ export const en: Record<TranslationKey, string> = {
   'opponents.search': 'Search players…',
   'opponents.empty': 'No players',
   'opponents.empty.hint': 'Try changing the filters',
+  'opponents.emptyOpen': 'Nobody is looking for an opponent right now',
+  'opponents.emptyOpen.hint': 'Create your own match — it will appear in this list for others to join.',
+  'opponents.createOwn': 'Create my match',
 
   // ─── Create ───────────────────────────────────────────────────────────────
   'create.title': 'Create a game',

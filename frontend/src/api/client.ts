@@ -179,6 +179,16 @@ export interface MatchView {
   finishedAt: string | null
 }
 
+/** Бой, который ждёт соперника прямо сейчас. */
+export interface OpenMatchView {
+  id: number
+  bet: number
+  rounds: number
+  condition: string | null
+  createdAt: string
+  host: { id: number; nickname: string; avatarId: string; rating: number }
+}
+
 export interface TransactionView {
   id: number
   type: string
@@ -260,6 +270,16 @@ export const api = {
     condition?: string
   }): Promise<{ match: MatchView; startParam: string }> {
     return request('/matches', { method: 'POST', body: input })
+  },
+
+  getOpenMatches(filter: { bet?: number; rounds?: number } = {}): Promise<{
+    matches: OpenMatchView[]
+  }> {
+    const params = new URLSearchParams()
+    if (filter.bet !== undefined) params.set('bet', String(filter.bet))
+    if (filter.rounds !== undefined) params.set('rounds', String(filter.rounds))
+    const query = params.toString()
+    return request(`/matches/open${query ? `?${query}` : ''}`)
   },
 
   joinMatch(matchId: number): Promise<{ match: MatchView }> {

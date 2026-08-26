@@ -4,6 +4,7 @@ import { useAppChrome } from '../components/AppMenu'
 import { InviteSheet } from '../sheets/InviteSheet'
 import { useI18n, useT } from '../i18n'
 import { OPPONENTS, FRIENDS } from '../data/mock'
+import { useOpenMatches } from '../state/useOpenMatches'
 import { ECONOMY } from '../config/economy'
 import { formatCoins, formatRounds } from '../lib/format'
 import { hapticSelection } from '../telegram/sdk'
@@ -16,10 +17,16 @@ type SortBy = 'online' | 'stake' | 'rating' | 'rounds'
 export function OpponentsScreen({
   initialTab,
   onSelect,
+  onJoinOpen,
+  onCreate,
   onBack,
 }: {
   initialTab: Tab
   onSelect: (config: MatchConfig) => void
+  /** Войти в конкретный открытый бой из списка. */
+  onJoinOpen?: (matchId: number) => void
+  /** Открыть создание боя — из пустого списка. */
+  onCreate?: () => void
   onBack: () => void
 }) {
   const t = useT()
@@ -33,8 +40,15 @@ export function OpponentsScreen({
   const [query, setQuery] = useState('')
   const [inviteFriend, setInviteFriend] = useState<Player | null>(null)
 
+  const open = useOpenMatches()
+
   const list = useMemo(() => {
-    const base = tab === 'random' ? OPPONENTS : FRIENDS
+    /*
+     * Во вкладке случайного боя показываем настоящие открытые бои с сервера.
+     * Демо-список остаётся только там, где сервера нет вовсе — иначе экран
+     * был бы пустым в статичном превью.
+     */
+    const base = tab === 'random' ? (open.live ? open.players : OPPONENTS) : FRIENDS
     return base
       .filter((p) => {
         if (betFilter === 'low') return p.bet <= 50
@@ -50,13 +64,20 @@ export function OpponentsScreen({
         if (sortBy === 'rounds') return b.rounds - a.rounds
         return (b.online ? 1 : 0) - (a.online ? 1 : 0)
       })
-  }, [tab, betFilter, roundsFilter, query, sortBy])
+  }, [tab, betFilter, roundsFilter, query, sortBy, open.live, open.players])
 
   /**
    * Условие пари доступно только в игре с друзьями (ЧАСТЬ 2, п.11),
    * поэтому во вкладке «Случайный бой» condition всегда пустой.
    */
-  const startMatch = (player: Player) =>
+  const startMatch = (player: Player) => {
+    // Настоящий открытый бой — входим именно в него, а не встаём в подбор.
+    const matchId = (player as Player & { matchId?: number }).matchId
+    if (tab === 'random' && open.live && matchId && onJoinOpen) {
+      onJoinOpen(matchId)
+      return
+    }
+
     onSelect({
       mode: tab === 'friends' ? 'friend' : 'random',
       bet: player.bet,
@@ -66,6 +87,7 @@ export function OpponentsScreen({
       opponentAvatar: player.avatar,
       opponentRating: player.rating,
     })
+  }
 
   const betChips: { key: BetFilter; label: string }[] = [
     { key: 'all', label: t('opponents.bet.any') },
@@ -184,8 +206,23 @@ export function OpponentsScreen({
         {list.length === 0 && (
           <div className="glass rounded-2xl p-8 flex flex-col items-center gap-3 text-center">
             <span className="text-4xl">🔍</span>
-            <div className="text-tg-text font-bold">{t('opponents.empty')}</div>
-            <div className="text-tg-subtext text-sm">{t('opponents.empty.hint')}</div>
+            <div className="text-tg-text font-bold">
+              {tab === 'random' && open.live ? t('opponents.emptyOpen') : t('opponents.empty')}
+            </div>
+            <div className="text-tg-subtext text-sm">
+              {tab === 'random' && open.live
+                ? t('opponents.emptyOpen.hint')
+                : t('opponents.empty.hint')}
+            </div>
+            {tab === 'random' && open.live && onCreate && (
+              <button
+                onClick={onCreate}
+                className="tappable mt-1 rounded-xl px-4 py-2.5 text-sm font-bold"
+                style={{ background: 'var(--tg-blue)', color: 'var(--tg-on-accent)' }}
+              >
+                {t('opponents.createOwn')}
+              </button>
+            )}
           </div>
         )}
         {list.map((player, i) => (

@@ -12,6 +12,7 @@ import {
 } from '../domain/match.js'
 import { buildMatchView } from '../domain/matchView.js'
 import { getReferralSummary } from '../domain/referrals.js'
+import { listOpenMatches } from '../domain/matchmaking.js'
 import { recordEvent } from '../domain/events.js'
 import { announceMatchStart } from '../ws/hub.js'
 
@@ -88,7 +89,25 @@ export async function matchRoutes(app: FastifyInstance): Promise<void> {
     }
   })
 
-  /** Вход по ссылке-приглашению. */
+  /**
+   * Открытые бои — те, что ждут соперника прямо сейчас.
+   *
+   * Это и есть список на экране «Найти бой»: живые игроки со своими
+   * условиями, а не выдуманные соперники.
+   */
+  app.get('/api/matches/open', { preHandler: requireAuth }, async (request) => {
+    const filter = z
+      .object({
+        bet: z.coerce.number().int().min(0).optional(),
+        rounds: z.coerce.number().int().min(1).max(9).optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+      })
+      .parse(request.query ?? {})
+
+    return { matches: await listOpenMatches(request.currentUser!.id, filter) }
+  })
+
+  /** Вход по ссылке-приглашению или в открытый бой из списка. */
   app.post<{ Params: { id: string } }>(
     '/api/matches/:id/join',
     { preHandler: requireAuth },

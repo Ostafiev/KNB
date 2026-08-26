@@ -215,6 +215,29 @@ async function main(): Promise<void> {
     alice.send({ type: 'queue', bet: 25, rounds: 3 })
     const queued = await alice.wait('queue_joined')
     check(queued.bet === 25, 'первый игрок встал в очередь')
+    check(typeof queued.matchId === 'number', 'ожидающий бой заведён в базе', queued)
+
+    // Главное, чего не хватало: открытый бой должен быть виден другому игроку.
+    const openForBob = await rest(bob.token, 'GET', '/api/matches/open')
+    const openList = (openForBob.body as { matches: { id: number; host: { nickname: string } }[] })
+      .matches
+    check(
+      openList.some((m) => m.id === queued.matchId),
+      'открытый бой виден второму игроку в общем списке',
+      openList,
+    )
+    check(
+      openList.find((m) => m.id === queued.matchId)?.host.nickname === 'Алиса',
+      'в списке видно, кто ждёт соперника',
+    )
+
+    const openForAlice = await rest(alice.token, 'GET', '/api/matches/open')
+    check(
+      !(openForAlice.body as { matches: { id: number }[] }).matches.some(
+        (m) => m.id === queued.matchId,
+      ),
+      'свой бой в списке не показывается',
+    )
 
     bob.send({ type: 'queue', bet: 25, rounds: 3 })
 
@@ -334,6 +357,56 @@ async function main(): Promise<void> {
       roundRows.every((r) => r.player1_move_at !== null && r.started_at !== null),
       'время старта раунда и время хода проставлены сервером',
     )
+
+    // ─── Отмена поиска ───────────────────────────────────────────────────────
+    section('Отмена поиска')
+
+    alice.clear()
+    bob.clear()
+    alice.send({ type: 'queue', bet: 50, rounds: 1 })
+    const waiting2 = await alice.wait('queue_joined')
+
+    const seenBefore = await rest(bob.token, 'GET', '/api/matches/open?bet=50')
+    check(
+      (seenBefore.body as { matches: { id: number }[] }).matches.some(
+        (m) => m.id === waiting2.matchId,
+      ),
+      'бой появился в списке',
+    )
+
+    alice.send({ type: 'queue_cancel' })
+    await alice.wait('queue_left')
+
+    const seenAfter = await rest(bob.token, 'GET', '/api/matches/open?bet=50')
+    check(
+      !(seenAfter.body as { matches: { id: number }[] }).matches.some(
+        (m) => m.id === waiting2.matchId,
+      ),
+      'после отмены бой пропал из списка',
+    )
+    check(
+      (await balanceOf(alice.userId)) === (await ledgerSum(alice.userId)),
+      'ожидание и отмена не тронули баланс',
+    )
+
+    // ─── Вход в открытый бой нажатием ────────────────────────────────────────
+    section('Вход в открытый бой из списка')
+
+    alice.clear()
+    bob.clear()
+    alice.send({ type: 'queue', bet: 25, rounds: 1 })
+    const waiting3 = await alice.wait('queue_joined')
+
+    const joined = await rest(bob.token, 'POST', `/api/matches/${waiting3.matchId}/join`)
+    check(joined.status === 200, 'второй игрок вошёл в выбранный бой', joined.body)
+    await alice.wait('match_found')
+    await bob.wait('match_found')
+    check(true, 'создатель боя узнал о входе соперника')
+
+    alice.send({ type: 'move', matchId: waiting3.matchId as number, choice: 'rock' })
+    bob.send({ type: 'move', matchId: waiting3.matchId as number, choice: BEATS.rock })
+    await alice.wait('match_finished')
+    await bob.wait('match_finished')
 
     // ─── Правила и запреты ───────────────────────────────────────────────────
     section('Правила и запреты')
