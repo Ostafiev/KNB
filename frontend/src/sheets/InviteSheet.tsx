@@ -4,9 +4,6 @@ import { BetSlider, RoundsPicker } from '../components/BetControls'
 import { PrimaryButton, GhostButton } from '../components/ui'
 import { useT } from '../i18n'
 import { FRIENDS } from '../data/mock'
-import { BOT_USERNAME } from '../config/env'
-import { ECONOMY } from '../config/economy'
-import { shareLink } from '../telegram/sdk'
 import type { MatchConfig, Player } from '../types'
 
 /**
@@ -36,7 +33,7 @@ export function InviteSheet({
    */
   variant?: 'link' | 'challenge'
   onClose: () => void
-  onInvite: (config: MatchConfig) => void
+  onInvite: (config: MatchConfig, options?: { share?: boolean }) => void
   onChallenge?: (config: MatchConfig & { opponentId: number }) => void
 }) {
   const t = useT()
@@ -46,27 +43,31 @@ export function InviteSheet({
   const [rounds, setRounds] = useState(3)
   const [condition, setCondition] = useState('')
 
-  const buildConfig = (opponent: Player): MatchConfig => ({
+  const buildConfig = (opponent: Player | null): MatchConfig => ({
     mode: 'friend',
     bet,
     roundsTotal: rounds,
     condition: condition.trim(),
-    opponentName: opponent.name,
-    opponentAvatar: opponent.avatar,
-    opponentRating: opponent.rating,
+    opponentName: opponent?.name ?? '',
+    opponentAvatar: opponent?.avatar ?? '👤',
+    opponentRating: opponent?.rating ?? 1000,
   })
 
-  const sendLink = () => {
-    const url = `https://t.me/${BOT_USERNAME}?start=match_${Math.random().toString(36).slice(2, 10)}`
-    const text = [
-      `${t('invite.stake')}: ${bet === ECONOMY.FREE_BET ? t('bet.free') : `${bet} 🪙`}`,
-      `${t('invite.rounds')}: ${rounds}`,
-      condition.trim() ? `${t('invite.condition')}: ${condition.trim()}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n')
-    shareLink(url, text)
-    onClose()
+  /*
+   * Отправка другу в Telegram. Матч заводится по-настоящему, и уже к нему
+   * ведёт ссылка в сообщении: раньше здесь была ссылка со случайными
+   * буквами, за которой не стояло никакого боя.
+   */
+  const sendToFriend = (): void => {
+    /*
+     * Соперника в приложении выбирать не обязательно: получателя человек
+     * выберет в самом Telegram, из своего списка контактов. Раньше кнопка
+     * была недоступна, пока друг не выбран, — и новый игрок, у которого
+     * в игре ещё никого нет, не мог позвать вообще никого.
+     */
+    const target = presetFriend ??
+      friend ?? { id: 0, name: '', avatar: '👤', rating: 0, bet, rounds, online: false }
+    onInvite(buildConfig(target), { share: true })
   }
 
   return (
@@ -82,11 +83,19 @@ export function InviteSheet({
 
       <SheetDivider />
 
-      {/* Выбор друга — только когда соперник не задан заранее */}
-      {!presetFriend && (
+      {/*
+        Выбор друга — только когда соперник не задан заранее и есть из кого
+        выбирать. Для отправки в Telegram он не нужен вовсе: получателя
+        человек выберет в списке контактов, а пустая рамка «пока никого нет»
+        над главной кнопкой выглядела бы как препятствие.
+      */}
+      {!presetFriend && list.length > 0 && (
         <>
           <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider">
             {t('invite.chooseFriend')}
+            {variant === 'link' && (
+              <span className="normal-case font-normal"> · {t('invite.chooseFriend.optional')}</span>
+            )}
           </div>
           {list.length === 0 ? (
             <div className="glass rounded-2xl p-5 flex flex-col items-center gap-1.5 text-center">
@@ -166,24 +175,40 @@ export function InviteSheet({
         )}
       </div>
 
-      <PrimaryButton
-        onClick={() => {
-          if (!friend) return
-          if (variant === 'challenge' && onChallenge) {
-            onChallenge({ ...buildConfig(friend), opponentId: friend.id })
-            return
-          }
-          onInvite(buildConfig(friend))
-        }}
-        disabled={!friend}
-        className="mt-1"
-      >
-        <span className="text-xl">⚔️</span>
-        <span>{variant === 'challenge' ? t('challenge.send') : t('invite.send')}</span>
-      </PrimaryButton>
-      <GhostButton onClick={sendLink} tone="accent">
-        📨 {t('invite.sendLink')}
-      </GhostButton>
+      {/*
+        Вызов другу, который прямо сейчас в приложении, — самое быстрое:
+        окно всплывёт у него через секунду. Во всех остальных случаях главное
+        действие одно — отправить готовое сообщение в Telegram.
+      */}
+      {variant === 'challenge' ? (
+        <>
+          <PrimaryButton
+            onClick={() => {
+              const target = presetFriend ?? friend
+              if (!target || !onChallenge) return
+              onChallenge({ ...buildConfig(target), opponentId: target.id })
+            }}
+            disabled={!(presetFriend ?? friend)}
+            className="mt-1"
+          >
+            <span className="text-xl">⚔️</span>
+            <span>{t('challenge.send')}</span>
+          </PrimaryButton>
+          <GhostButton onClick={sendToFriend} tone="accent">
+            📨 {t('invite.sendToFriend')}
+          </GhostButton>
+        </>
+      ) : (
+        <>
+          <PrimaryButton onClick={sendToFriend} className="mt-1">
+            <span className="text-xl">📨</span>
+            <span>{t('invite.sendToFriend')}</span>
+          </PrimaryButton>
+          <GhostButton onClick={() => onInvite(buildConfig(presetFriend ?? friend ?? null))}>
+            {t('invite.justLink')}
+          </GhostButton>
+        </>
+      )}
     </BottomSheet>
   )
 }

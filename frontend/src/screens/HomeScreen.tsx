@@ -20,7 +20,7 @@ export function HomeScreen({
 }: {
   onOpponents: (tab: Tab) => void
   onCreate: () => void
-  onStartMatch: (config: MatchConfig) => void
+  onStartMatch: (config: MatchConfig, options?: { share?: boolean }) => void
 }) {
   const t = useT()
   const { lang } = useI18n()
@@ -73,9 +73,9 @@ export function HomeScreen({
         <InviteSheet
           friends={friendsLive ? friendList : undefined}
           onClose={() => setInviteOpen(false)}
-          onInvite={(config) => {
+          onInvite={(config, options) => {
             setInviteOpen(false)
-            onStartMatch(config)
+            onStartMatch(config, options)
           }}
         />
       )}

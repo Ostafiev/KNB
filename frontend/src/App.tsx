@@ -18,7 +18,8 @@ import { useAppState } from './state/AppState'
 import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
-import { initTelegram, getStartParam } from './telegram/sdk'
+import { initTelegram, getStartParam, shareLink } from './telegram/sdk'
+import { buildInviteMessage, buildInviteUrl } from './lib/invite'
 import type { MatchView } from './api/client'
 import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
 
@@ -176,7 +177,7 @@ export default function App() {
    * Бесплатный матч (ставка 0) проверку баланса не проходит вовсе.
    */
   const startMatch = useCallback(
-    (config: MatchConfig) => {
+    (config: MatchConfig, options: { share?: boolean } = {}) => {
       if (config.bet > ECONOMY.FREE_BET && balance < config.bet) {
         setInsufficientFor(config.bet)
         return
@@ -209,7 +210,25 @@ export default function App() {
               rounds: config.roundsTotal,
               condition: config.condition || undefined,
             })
-            .then(({ startParam }) => setInviteLink(startParam))
+            .then(({ startParam }) => {
+              setInviteLink(startParam)
+              /*
+               * Главный способ, которым игра расходится между людьми:
+               * готовое сообщение с условием пари и ссылкой уходит в список
+               * контактов Telegram. Ссылку составляем только теперь — когда
+               * матч действительно заведён и за ней что-то стоит.
+               */
+              if (options.share) {
+                shareLink(
+                  buildInviteUrl(startParam),
+                  buildInviteMessage(t, {
+                    bet: config.bet,
+                    rounds: config.roundsTotal,
+                    condition: config.condition,
+                  }),
+                )
+              }
+            })
             .catch(() => setLiveError('Не удалось создать приглашение'))
         } else {
           live.queue(config.bet, config.roundsTotal)
@@ -218,7 +237,7 @@ export default function App() {
 
       go('waiting')
     },
-    [balance, go, liveOn, live, demoPlayAllowed, status],
+    [balance, go, liveOn, live, demoPlayAllowed, status, t],
   )
 
   /** Правка 14: «Следующий бой» — новый соперник, условия те же, без подтверждений. */

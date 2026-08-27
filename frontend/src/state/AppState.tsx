@@ -320,7 +320,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       dailyBonusAvailable: state.dailyBonusClaimedOn !== todayKey(),
       withdrawUnlocked: matchesToWithdraw === 0 && state.balance >= ECONOMY.WITHDRAW_MIN_COINS,
       matchesToWithdraw,
-      referralLink: `https://t.me/${BOT_USERNAME}?start=ref_${state.referralCode}`,
+      /*
+       * Ссылка вида `?startapp=` открывает саму игру. Ссылка `?start=`
+       * открывала бы переписку с ботом, где приглашённого никто не встретит:
+       * бот не отвечает на сообщения, он только показывает приложение.
+       */
+      referralLink: `https://t.me/${BOT_USERNAME}?startapp=ref_${state.referralCode}`,
       acceptConsent,
       claimDailyBonus,
       rewardAd,

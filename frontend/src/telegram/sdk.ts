@@ -48,7 +48,7 @@ export function getTelegramUser() {
   return getWebApp()?.initDataUnsafe?.user
 }
 
-/** start_param из ссылки t.me/bot?start=... — реферальный код или id матча. */
+/** start_param из ссылки t.me/бот?startapp=… — реферальный код или id матча. */
 export function getStartParam(): string | undefined {
   return getWebApp()?.initDataUnsafe?.start_param
 }

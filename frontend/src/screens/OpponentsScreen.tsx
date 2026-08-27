@@ -27,7 +27,7 @@ export function OpponentsScreen({
   onBack,
 }: {
   initialTab: Tab
-  onSelect: (config: MatchConfig) => void
+  onSelect: (config: MatchConfig, options?: { share?: boolean }) => void
   /** Войти в конкретный открытый бой из списка. */
   onJoinOpen?: (matchId: number) => void
   /** Открыть создание боя — из пустого списка. */
@@ -152,9 +152,9 @@ export function OpponentsScreen({
         <InviteSheet
           friend={inviteFriend}
           onClose={() => setInviteFriend(null)}
-          onInvite={(config) => {
+          onInvite={(config, options) => {
             setInviteFriend(null)
-            onSelect(config)
+            onSelect(config, options)
           }}
         />
       )}
@@ -169,9 +169,9 @@ export function OpponentsScreen({
           friends={friendList.map((f) => f.player)}
           variant={challengeFriend.online ? 'challenge' : 'link'}
           onClose={() => setChallengeFriend(null)}
-          onInvite={(config) => {
+          onInvite={(config, options) => {
             setChallengeFriend(null)
-            onSelect(config)
+            onSelect(config, options)
           }}
           onChallenge={(config) => {
             setChallengeFriend(null)

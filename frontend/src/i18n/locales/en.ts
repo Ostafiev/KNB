@@ -137,6 +137,7 @@ export const en: Record<TranslationKey, string> = {
   'invite.title': 'Invite to play',
   'invite.subtitle': 'Pick a friend and set the terms',
   'invite.chooseFriend': 'Friend',
+  'invite.chooseFriend.optional': 'optional — you pick the chat in Telegram',
   'invite.noFriends': 'Nobody here yet',
   'invite.noFriends.hint': 'Invite friends with your referral link',
   'invite.stake': 'Bet',
@@ -145,6 +146,11 @@ export const en: Record<TranslationKey, string> = {
   'invite.condition': 'Wager terms',
   'invite.condition.placeholder': 'For example: the loser does 20 push-ups…',
   'invite.send': 'Send challenge',
+  'invite.message.title': 'I challenge you to Rock Paper Scissors!',
+  'invite.message.condition': 'Wager: {condition}',
+  'invite.message.terms': 'Stake: {stake} · rounds: {rounds}',
+  'invite.sendToFriend': 'Send to a friend on Telegram',
+  'invite.justLink': 'Just create a link',
   'invite.sendLink': 'Send a link',
 
   // ─── Referrals ────────────────────────────────────────────────────────────

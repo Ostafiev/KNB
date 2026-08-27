@@ -135,6 +135,7 @@ export const ru = {
   'invite.title': 'Позвать в игру',
   'invite.subtitle': 'Выбери друга и задай условия',
   'invite.chooseFriend': 'Друг',
+  'invite.chooseFriend.optional': 'необязательно, получателя выберешь в Telegram',
   'invite.noFriends': 'Пока никого нет',
   'invite.noFriends.hint': 'Пригласи друзей по реферальной ссылке',
   'invite.stake': 'Ставка',
@@ -143,6 +144,11 @@ export const ru = {
   'invite.condition': 'Условие пари',
   'invite.condition.placeholder': 'Например: проигравший делает 20 отжиманий…',
   'invite.send': 'Отправить вызов',
+  'invite.message.title': 'Бросаю тебе вызов в «Камень-ножницы-бумага»!',
+  'invite.message.condition': 'Условие: {condition}',
+  'invite.message.terms': 'Ставка: {stake} · раундов: {rounds}',
+  'invite.sendToFriend': 'Отправить другу в Telegram',
+  'invite.justLink': 'Просто создать ссылку',
   'invite.sendLink': 'Отправить ссылку',
 
   // ─── Рефералы ─────────────────────────────────────────────────────────────

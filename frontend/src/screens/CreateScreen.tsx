@@ -5,8 +5,6 @@ import { BetSlider, RoundsPicker } from '../components/BetControls'
 import { useI18n, useT } from '../i18n'
 import { formatRounds } from '../lib/format'
 import { ECONOMY } from '../config/economy'
-import { BOT_USERNAME } from '../config/env'
-import { shareLink } from '../telegram/sdk'
 import { hapticSelection } from '../telegram/sdk'
 import type { MatchConfig, MatchMode } from '../types'
 
@@ -14,7 +12,7 @@ export function CreateScreen({
   onCreate,
   onBack,
 }: {
-  onCreate: (config: MatchConfig) => void
+  onCreate: (config: MatchConfig, options?: { share?: boolean }) => void
   onBack: () => void
 }) {
   const t = useT()
@@ -42,17 +40,12 @@ export function CreateScreen({
     opponentRating: 1000,
   })
 
-  const invite = () => {
-    const url = `https://t.me/${BOT_USERNAME}?start=game_${Math.random().toString(36).slice(2, 10)}`
-    const text = [
-      `${t('common.bet')}: ${bet === ECONOMY.FREE_BET ? t('bet.free') : `${bet} 🪙`}`,
-      `${t('create.rounds')}: ${rounds}`,
-      effectiveCondition ? `${t('summary.condition')}: ${effectiveCondition}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n')
-    shareLink(url, text)
-  }
+  /*
+   * Приглашение другу: сначала заводим настоящий матч, и только потом
+   * отправляем ссылку. Раньше здесь собиралась ссылка со случайными буквами —
+   * друг открывал её и не находил за ней никакого боя.
+   */
+  const invite = (): void => onCreate(buildConfig(), { share: true })
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-4">
@@ -151,7 +144,7 @@ export function CreateScreen({
           {mode === 'friend' && (
             <>
               <GhostButton onClick={invite} tone="accent">
-                📨 {t('create.invite')}
+                📨 {t('invite.sendToFriend')}
               </GhostButton>
               <p className="text-center text-tg-subtext text-xs">{t('create.invite.note')}</p>
             </>
