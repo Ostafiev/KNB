@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { api, getToken, type MatchView } from '../api/client'
+import { api, getToken, type ChallengeView, type MatchView } from '../api/client'
 import { matchSocket, type SocketEvent } from '../api/socket'
 import { useAppState } from './AppState'
 import type { HandChoice } from '../types'
@@ -17,9 +17,18 @@ import type { HandChoice } from '../types'
 
 export type LivePhase = 'idle' | 'searching' | 'active' | 'finished'
 
+/** Что случилось с отправленным вызовом. */
+export type ChallengeOutcome = 'declined' | 'expired' | 'cancelled'
+
 /** Сигнал о событии — по нему экраны решают, куда переходить. */
 export interface LiveSignal {
-  kind: 'match_found' | 'round_result' | 'round_started' | 'match_finished' | 'error'
+  kind:
+    | 'match_found'
+    | 'round_result'
+    | 'round_started'
+    | 'match_finished'
+    | 'error'
+    | 'challenge_sent'
   seq: number
   code?: string
   message?: string
@@ -35,6 +44,21 @@ interface LiveMatchValue {
   opponentMoved: boolean
   myChoice: HandChoice | null
   signal: LiveSignal | null
+  /** Вызовы, на которые ждут моего ответа. */
+  incoming: ChallengeView[]
+  /** Мой вызов, ждущий ответа друга. */
+  outgoing: ChallengeView | null
+  /** Что стало с последним отправленным вызовом — для короткого сообщения. */
+  challengeOutcome: { outcome: ChallengeOutcome; seq: number } | null
+  challenge: (input: {
+    toUserId: number
+    bet: number
+    rounds: number
+    condition?: string
+  }) => void
+  acceptChallenge: (matchId: number) => void
+  declineChallenge: (matchId: number) => void
+  cancelChallenge: (matchId: number) => void
   queue: (bet: number, rounds: number) => void
   cancelQueue: () => void
   createInvite: (input: {
@@ -61,8 +85,14 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
   const [opponentMoved, setOpponentMoved] = useState(false)
   const [myChoice, setMyChoice] = useState<HandChoice | null>(null)
   const [signal, setSignal] = useState<LiveSignal | null>(null)
+  const [incoming, setIncoming] = useState<ChallengeView[]>([])
+  const [outgoing, setOutgoing] = useState<ChallengeView | null>(null)
+  const [challengeOutcome, setChallengeOutcome] = useState<
+    { outcome: ChallengeOutcome; seq: number } | null
+  >(null)
 
   const seq = useRef(0)
+  const bump = useRef(0)
   const matchIdRef = useRef<number | null>(null)
   // Фаза нужна внутри обработчика событий, который создаётся один раз.
   const phaseRef = useRef<LivePhase>('idle')
@@ -97,6 +127,8 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
           if (matchIdRef.current) {
             matchSocket.send({ type: 'resume', matchId: matchIdRef.current })
           }
+          // И какие вызовы ещё ждут ответа: окно должно вернуться на место.
+          matchSocket.send({ type: 'challenges' })
           return
         }
 
@@ -113,6 +145,9 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
           return
 
         case 'match_found': {
+          // Бой начался — окна вызовов больше не нужны.
+          setIncoming([])
+          setOutgoing(null)
           adoptMatch(event.match as MatchView)
           setRoundEndsAt((event.roundEndsAt as number) ?? null)
           setPhase('active')
@@ -161,6 +196,54 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
+        // ─── Вызовы ────────────────────────────────────────────────────────
+
+        case 'challenges': {
+          setIncoming((event.incoming as ChallengeView[]) ?? [])
+          setOutgoing(((event.outgoing as ChallengeView[]) ?? [])[0] ?? null)
+          return
+        }
+
+        case 'challenge_received': {
+          const challenge = event.challenge as ChallengeView
+          setIncoming((prev) => [
+            ...prev.filter((c) => c.matchId !== challenge.matchId),
+            challenge,
+          ])
+          return
+        }
+
+        case 'challenge_sent': {
+          setOutgoing(event.challenge as ChallengeView)
+          raise('challenge_sent')
+          return
+        }
+
+        case 'challenge_declined':
+        case 'challenge_expired':
+        case 'challenge_cancelled':
+        case 'challenge_closed': {
+          const matchId = event.matchId as number
+          setIncoming((prev) => prev.filter((c) => c.matchId !== matchId))
+          setOutgoing((prev) => {
+            if (prev?.matchId !== matchId) return prev
+            if (event.type !== 'challenge_closed') {
+              bump.current += 1
+              setChallengeOutcome({
+                outcome:
+                  event.type === 'challenge_declined'
+                    ? 'declined'
+                    : event.type === 'challenge_expired'
+                      ? 'expired'
+                      : 'cancelled',
+                seq: bump.current,
+              })
+            }
+            return null
+          })
+          return
+        }
+
         case 'error':
           raise('error', { code: event.code as string, message: event.message as string })
           return
@@ -171,6 +254,35 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
       unsubscribe()
     }
   }, [available, adoptMatch, raise, refreshMe])
+
+  /**
+   * Позвать друга на бой. Ставка сейчас не списывается: медяки уходят
+   * только когда друг ответит согласием и оба окажутся в бою.
+   */
+  const challenge = useCallback<LiveMatchValue['challenge']>((input) => {
+    matchSocket.send({
+      type: 'challenge',
+      toUserId: input.toUserId,
+      bet: input.bet,
+      rounds: input.rounds,
+      condition: input.condition?.trim() || undefined,
+    })
+  }, [])
+
+  const acceptChallenge = useCallback((matchId: number) => {
+    setIncoming((prev) => prev.filter((c) => c.matchId !== matchId))
+    matchSocket.send({ type: 'challenge_accept', matchId })
+  }, [])
+
+  const declineChallenge = useCallback((matchId: number) => {
+    setIncoming((prev) => prev.filter((c) => c.matchId !== matchId))
+    matchSocket.send({ type: 'challenge_decline', matchId })
+  }, [])
+
+  const cancelChallenge = useCallback((matchId: number) => {
+    setOutgoing(null)
+    matchSocket.send({ type: 'challenge_cancel', matchId })
+  }, [])
 
   const queue = useCallback((bet: number, rounds: number) => {
     setPhase('searching')
@@ -235,6 +347,13 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
       opponentMoved,
       myChoice,
       signal,
+      incoming,
+      outgoing,
+      challengeOutcome,
+      challenge,
+      acceptChallenge,
+      declineChallenge,
+      cancelChallenge,
       queue,
       cancelQueue,
       createInvite,
@@ -252,6 +371,13 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
       opponentMoved,
       myChoice,
       signal,
+      incoming,
+      outgoing,
+      challengeOutcome,
+      challenge,
+      acceptChallenge,
+      declineChallenge,
+      cancelChallenge,
       queue,
       cancelQueue,
       createInvite,

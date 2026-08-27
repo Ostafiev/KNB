@@ -1,4 +1,5 @@
 import { query } from '../db/client.js'
+import { isOnline } from './presence.js'
 import {
   createMatch,
   startMatch,
@@ -40,16 +41,10 @@ export interface QueueResult {
 }
 
 /**
- * Проверка «этот игрок всё ещё на связи». Реализацию подставляет слой
- * WebSocket: подбор не должен знать про сокеты.
+ * Проверка «этот игрок всё ещё на связи» живёт отдельно: она нужна не только
+ * подбору, но и списку друзей. Реализацию подставляет слой WebSocket.
  */
-export type LivenessCheck = (userId: number) => boolean
-
-let isOnline: LivenessCheck = () => true
-
-export function setLivenessCheck(check: LivenessCheck): void {
-  isOnline = check
-}
+export { setLivenessCheck, type LivenessCheck } from './presence.js'
 
 /** Открытые бои — то, что видит игрок на экране поиска. */
 export async function listOpenMatches(

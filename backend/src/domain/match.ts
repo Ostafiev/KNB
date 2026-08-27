@@ -67,6 +67,8 @@ export interface MatchRow {
   rating1_delta: number
   rating2_delta: number
   rematch_of: number | null
+  invited_id: number | null
+  expires_at: string | null
   finish_reason: 'played' | 'abandoned' | null
   created_at: string
   started_at: string | null
@@ -149,6 +151,13 @@ export interface CreateMatchInput {
   rounds: number
   condition?: string | null
   rematchOf?: number | null
+  /**
+   * Кого именно позвали. Персональный вызов может принять только этот игрок;
+   * приглашение ссылкой (null) открыто любому, кто её получил.
+   */
+  invitedId?: number | null
+  /** Сколько вызов ждёт ответа, в миллисекундах. Без срока вызовы копились бы. */
+  expiresInMs?: number | null
 }
 
 /**
@@ -194,9 +203,22 @@ export async function createMatch(input: CreateMatchInput): Promise<MatchRow> {
 
   const status: MatchStatus = input.mode === 'random' ? 'searching' : 'pending'
 
+  if (input.invitedId !== undefined && input.invitedId !== null) {
+    if (input.mode !== 'friend') {
+      throw new MatchError('invite_only_friend', 'позвать поимённо можно только в матч с другом')
+    }
+    if (input.invitedId === input.player1Id) {
+      throw new MatchError('same_player', 'нельзя позвать самого себя')
+    }
+  }
+
   const created = await queryOne<MatchRow>(
-    `INSERT INTO matches (mode, status, player1_id, bet_amount, rounds_total, condition, rematch_of)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO matches
+       (mode, status, player1_id, bet_amount, rounds_total, condition, rematch_of,
+        invited_id, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+             CASE WHEN $9::bigint IS NULL THEN NULL
+                  ELSE now() + ($9::bigint * INTERVAL '1 millisecond') END)
      RETURNING *`,
     [
       input.mode,
@@ -206,6 +228,8 @@ export async function createMatch(input: CreateMatchInput): Promise<MatchRow> {
       input.rounds,
       input.condition ?? null,
       input.rematchOf ?? null,
+      input.invitedId ?? null,
+      input.expiresInMs ?? null,
     ],
   )
   return created!
@@ -236,6 +260,17 @@ export async function startMatch(matchId: number, player2Id: number): Promise<St
     }
     if (match.player1_id === player2Id) {
       throw new MatchError('same_player', 'нельзя играть с самим собой')
+    }
+
+    /*
+     * Персональный вызов принадлежит тому, кого позвали. Иначе ссылку на матч
+     * можно было бы перехватить и войти вместо друга.
+     */
+    if (match.invited_id !== null && match.invited_id !== player2Id) {
+      throw new MatchError('not_invited', 'этот бой ждёт другого игрока')
+    }
+    if (match.expires_at !== null && new Date(match.expires_at).getTime() <= Date.now()) {
+      throw new MatchError('challenge_expired', 'время вызова истекло')
     }
 
     const opponent = await client.query<{ banned_at: string | null }>(

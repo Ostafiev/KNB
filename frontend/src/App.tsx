@@ -9,11 +9,13 @@ import { BattleScreen } from './screens/BattleScreen'
 import { ResultScreen } from './screens/ResultScreen'
 import { SummaryScreen } from './screens/SummaryScreen'
 import { InsufficientBalanceSheet } from './sheets/MiscSheets'
+import { IncomingChallengeSheet, OutgoingChallengeBanner } from './sheets/ChallengeSheets'
 import { DevBar } from './components/DevBar'
 import { SHOW_DEV_BAR } from './config/env'
 import { ECONOMY, eloUpdate, roundsToWin } from './config/economy'
 import { randomChoice, resolveRound } from './lib/game'
 import { useAppState } from './state/AppState'
+import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
 import { initTelegram, getStartParam } from './telegram/sdk'
@@ -59,6 +61,7 @@ export default function App() {
   const { consentAccepted, acceptConsent, balance, rating, recordMatch, status, demoPlayAllowed } =
     useAppState()
   const live = useLiveMatch()
+  const t = useT()
 
   const [screen, setScreen] = useState<Screen>('splash')
   const [opponentsTab, setOpponentsTab] = useState<Tab>('random')
@@ -130,6 +133,23 @@ export default function App() {
         return
     }
   }, [live.signal, liveOn, live.match?.bet, go])
+
+  /**
+   * Что стало с отправленным вызовом. Друг мог отказаться или не ответить —
+   * без сообщения окно просто исчезло бы, и это выглядело бы как сбой.
+   */
+  const challengeOutcome = live.challengeOutcome
+  useEffect(() => {
+    if (!challengeOutcome) return
+    if (challengeOutcome.outcome === 'cancelled') return
+    setLiveError(
+      challengeOutcome.outcome === 'declined'
+        ? t('challenge.declined')
+        : t('challenge.expired'),
+    )
+    const timer = setTimeout(() => setLiveError(null), 4000)
+    return () => clearTimeout(timer)
+  }, [challengeOutcome, t])
 
   /** Вход по ссылке-приглашению: t.me/бот?startapp=match_123 */
   const handledStartParam = useRef(false)
@@ -452,6 +472,26 @@ export default function App() {
 
       {insufficientFor !== null && (
         <InsufficientBalanceSheet needed={insufficientFor} onClose={() => setInsufficientFor(null)} />
+      )}
+
+      {/*
+        Вызов на бой приходит когда угодно, поэтому окно живёт над всем
+        приложением, а не внутри экрана друзей: игрок мог уйти в профиль.
+        В бою окно не показываем — оно перекрыло бы ход.
+      */}
+      {liveOn && live.incoming.length > 0 && screen !== 'battle' && (
+        <IncomingChallengeSheet
+          challenge={live.incoming[0]}
+          onAccept={() => live.acceptChallenge(live.incoming[0].matchId)}
+          onDecline={() => live.declineChallenge(live.incoming[0].matchId)}
+        />
+      )}
+
+      {liveOn && live.outgoing && screen !== 'battle' && (
+        <OutgoingChallengeBanner
+          challenge={live.outgoing}
+          onCancel={() => live.cancelChallenge(live.outgoing!.matchId)}
+        />
       )}
 
       {liveError && (

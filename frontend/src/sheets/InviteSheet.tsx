@@ -21,15 +21,27 @@ import type { MatchConfig, Player } from '../types'
  */
 export function InviteSheet({
   friend: presetFriend,
+  friends,
+  variant = 'link',
   onClose,
   onInvite,
+  onChallenge,
 }: {
   friend?: Player
+  /** Настоящий список друзей. Если не передан — демо-данные для превью. */
+  friends?: Player[]
+  /**
+   * 'link' — отправить приглашение ссылкой, друг войдёт когда откроет.
+   * 'challenge' — позвать прямо сейчас: друг в приложении и увидит окно.
+   */
+  variant?: 'link' | 'challenge'
   onClose: () => void
   onInvite: (config: MatchConfig) => void
+  onChallenge?: (config: MatchConfig & { opponentId: number }) => void
 }) {
   const t = useT()
-  const [friend, setFriend] = useState<Player | null>(presetFriend ?? FRIENDS[0] ?? null)
+  const list = friends ?? FRIENDS
+  const [friend, setFriend] = useState<Player | null>(presetFriend ?? list[0] ?? null)
   const [bet, setBet] = useState(100)
   const [rounds, setRounds] = useState(3)
   const [condition, setCondition] = useState('')
@@ -60,7 +72,9 @@ export function InviteSheet({
   return (
     <BottomSheet open onClose={onClose}>
       <div className="mb-1">
-        <div className="font-black text-tg-text">{t('invite.title')}</div>
+        <div className="font-black text-tg-text">
+          {variant === 'challenge' ? t('challenge.callTitle') : t('invite.title')}
+        </div>
         <div className="text-tg-subtext text-xs mt-0.5">
           {presetFriend ? presetFriend.name : t('invite.subtitle')}
         </div>
@@ -74,7 +88,7 @@ export function InviteSheet({
           <div className="text-tg-subtext text-xs font-semibold uppercase tracking-wider">
             {t('invite.chooseFriend')}
           </div>
-          {FRIENDS.length === 0 ? (
+          {list.length === 0 ? (
             <div className="glass rounded-2xl p-5 flex flex-col items-center gap-1.5 text-center">
               <span className="text-2xl">👥</span>
               <div className="text-tg-text text-sm font-bold">{t('invite.noFriends')}</div>
@@ -82,7 +96,7 @@ export function InviteSheet({
             </div>
           ) : (
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {FRIENDS.map((f) => {
+              {list.map((f) => {
                 const active = friend?.id === f.id
                 return (
                   <button
@@ -152,9 +166,20 @@ export function InviteSheet({
         )}
       </div>
 
-      <PrimaryButton onClick={() => friend && onInvite(buildConfig(friend))} disabled={!friend} className="mt-1">
+      <PrimaryButton
+        onClick={() => {
+          if (!friend) return
+          if (variant === 'challenge' && onChallenge) {
+            onChallenge({ ...buildConfig(friend), opponentId: friend.id })
+            return
+          }
+          onInvite(buildConfig(friend))
+        }}
+        disabled={!friend}
+        className="mt-1"
+      >
         <span className="text-xl">⚔️</span>
-        <span>{t('invite.send')}</span>
+        <span>{variant === 'challenge' ? t('challenge.send') : t('invite.send')}</span>
       </PrimaryButton>
       <GhostButton onClick={sendLink} tone="accent">
         📨 {t('invite.sendLink')}

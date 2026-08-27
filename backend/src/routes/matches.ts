@@ -12,6 +12,7 @@ import {
 } from '../domain/match.js'
 import { buildMatchView } from '../domain/matchView.js'
 import { getReferralSummary } from '../domain/referrals.js'
+import { listFriends } from '../domain/friends.js'
 import { listOpenMatches } from '../domain/matchmaking.js'
 import { recordEvent } from '../domain/events.js'
 import { announceMatchStart } from '../ws/hub.js'
@@ -35,7 +36,12 @@ function matchErrorStatus(code: string): number {
       return 404
     case 'not_a_player':
     case 'banned':
+    // Персональный вызов адресован конкретному человеку: для всех
+    // остальных это чужая дверь, а не сломанный запрос.
+    case 'not_invited':
       return 403
+    case 'challenge_expired':
+      return 410
     case 'insufficient_funds':
       return 402
     case 'match_full':
@@ -213,5 +219,15 @@ export async function matchRoutes(app: FastifyInstance): Promise<void> {
   /** Сводка по приглашённым. */
   app.get('/api/me/referrals', { preHandler: requireAuth }, async (request) => {
     return getReferralSummary(request.currentUser!.id)
+  })
+
+  /**
+   * Друзья: кого пригласил, кто пригласил, с кем играл.
+   *
+   * Telegram список контактов не отдаёт никому, поэтому здесь только те люди,
+   * с которыми у игрока есть общая история в самой игре.
+   */
+  app.get('/api/me/friends', { preHandler: requireAuth }, async (request) => {
+    return { friends: await listFriends(request.currentUser!.id) }
   })
 }

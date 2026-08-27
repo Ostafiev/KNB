@@ -14,6 +14,15 @@ import {
   type RoundRow,
 } from '../domain/match.js'
 import { cancelOpen, enqueue, setLivenessCheck } from '../domain/matchmaking.js'
+import {
+  acceptChallenge,
+  cancelChallenge,
+  declineChallenge,
+  dropOutgoingOf,
+  expireStale,
+  listChallenges,
+  sendChallenge,
+} from '../domain/challenges.js'
 import { isBotId, startBotRuntime } from './botRuntime.js'
 import { recordEvent } from '../domain/events.js'
 import {
@@ -47,6 +56,18 @@ const clientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), matchId: z.number().int(), choice: z.string() }),
   z.object({ type: z.literal('leave'), matchId: z.number().int() }),
   z.object({ type: z.literal('resume'), matchId: z.number().int() }),
+  // Вызов друга на бой
+  z.object({
+    type: z.literal('challenge'),
+    toUserId: z.number().int(),
+    bet: z.number().int(),
+    rounds: z.number().int(),
+    condition: z.string().max(200).optional(),
+  }),
+  z.object({ type: z.literal('challenge_accept'), matchId: z.number().int() }),
+  z.object({ type: z.literal('challenge_decline'), matchId: z.number().int() }),
+  z.object({ type: z.literal('challenge_cancel'), matchId: z.number().int() }),
+  z.object({ type: z.literal('challenges') }),
 ])
 
 export async function socketRoutes(app: FastifyInstance): Promise<void> {
@@ -59,6 +80,7 @@ export async function socketRoutes(app: FastifyInstance): Promise<void> {
   setLivenessCheck((userId) => isOnline(userId) || isBotId(userId))
 
   await startBotRuntime(app)
+  startChallengeSweeper(app)
 
   app.get('/ws', { websocket: true }, (socket, request) => {
     const token = (request.query as { token?: string }).token
@@ -78,22 +100,66 @@ export async function socketRoutes(app: FastifyInstance): Promise<void> {
     void queryOne('UPDATE users SET last_seen_at = now() WHERE id = $1 RETURNING id', [userId])
     socket.send(JSON.stringify({ type: 'hello', userId }))
 
+    /*
+     * Сообщения одного игрока обрабатываются строго по очереди.
+     *
+     * Иначе шесть вызовов, отправленных разом, проверяли бы «сколько вызовов
+     * уже отправлено» одновременно — и каждый видел бы ноль. Так обходится
+     * любое ограничение, считающее прошлые действия: очередь здесь не роскошь,
+     * а условие того, что счётчики вообще работают.
+     */
+    let chain: Promise<void> = Promise.resolve()
+
     socket.on('message', (raw: Buffer) => {
-      void handleMessage(app, userId, raw.toString())
+      const text = raw.toString()
+      chain = chain.then(() =>
+        handleMessage(app, userId, text).catch((error: unknown) => {
+          app.log.error({ err: error, userId }, 'сообщение не обработано')
+        }),
+      )
     })
 
-    socket.on('close', () => {
+    const onGone = (): void => {
       unregister()
       // Из очереди выходим сразу: держать в подборе того, кто закрыл
       // приложение, значит подсовывать сопернику матч без соперника.
       void cancelOpen(userId)
-    })
+      // То же и с вызовами: принять приглашение от того, кто вышел, значит
+      // остаться в бою одному.
+      void dropOutgoingOf(userId).then((gone) => {
+        for (const item of gone) {
+          sendToUser(item.to, { type: 'challenge_cancelled', matchId: item.matchId })
+        }
+      })
+    }
 
-    socket.on('error', () => {
-      unregister()
-      void cancelOpen(userId)
-    })
+    socket.on('close', onGone)
+    socket.on('error', onGone)
   })
+}
+
+/**
+ * Гасит вызовы, на которые не ответили, и говорит об этом обеим сторонам.
+ *
+ * Сроком заведует сервер, а не таймер в приложении: закрытая вкладка не
+ * должна оставлять другу вечно висящее окно «тебя зовут».
+ */
+const SWEEP_MS = 5_000
+
+function startChallengeSweeper(app: FastifyInstance): void {
+  const timer = setInterval(() => {
+    void (async () => {
+      try {
+        for (const gone of await expireStale()) {
+          sendToUser(gone.from, { type: 'challenge_expired', matchId: gone.matchId })
+          sendToUser(gone.to, { type: 'challenge_expired', matchId: gone.matchId })
+        }
+      } catch (error) {
+        app.log.error({ err: error }, 'не удалось погасить просроченные вызовы')
+      }
+    })()
+  }, SWEEP_MS)
+  timer.unref?.()
 }
 
 async function handleMessage(app: FastifyInstance, userId: number, raw: string): Promise<void> {
@@ -179,6 +245,59 @@ async function handleMessage(app: FastifyInstance, userId: number, raw: string):
           return
         }
         await sendMatchState(match.id, userId)
+        return
+      }
+
+      // ─── Вызов друга ───────────────────────────────────────────────────────
+
+      case 'challenge': {
+        const challenge = await sendChallenge({
+          fromId: userId,
+          toId: parsed.toUserId,
+          bet: parsed.bet,
+          rounds: parsed.rounds,
+          condition: parsed.condition?.trim() || null,
+        })
+        sendToUser(userId, { type: 'challenge_sent', challenge })
+        sendToUser(challenge.to.id, { type: 'challenge_received', challenge })
+        await recordEvent(userId, 'challenge_sent', {
+          matchId: challenge.matchId,
+          toUserId: challenge.to.id,
+          bet: challenge.bet,
+        })
+        return
+      }
+
+      case 'challenge_accept': {
+        const started = await acceptChallenge(parsed.matchId, userId)
+        await announceMatchStart(started.match, started.round)
+        await recordEvent(userId, 'match_started', {
+          matchId: started.match.id,
+          mode: 'friend',
+          bet: started.match.bet_amount,
+          fromChallenge: true,
+        })
+        return
+      }
+
+      case 'challenge_decline': {
+        const declined = await declineChallenge(parsed.matchId, userId)
+        if (!declined) return
+        sendToUser(declined.from.id, { type: 'challenge_declined', matchId: declined.matchId })
+        sendToUser(userId, { type: 'challenge_closed', matchId: declined.matchId })
+        return
+      }
+
+      case 'challenge_cancel': {
+        const cancelled = await cancelChallenge(parsed.matchId, userId)
+        if (!cancelled) return
+        sendToUser(cancelled.to.id, { type: 'challenge_cancelled', matchId: cancelled.matchId })
+        sendToUser(userId, { type: 'challenge_closed', matchId: cancelled.matchId })
+        return
+      }
+
+      case 'challenges': {
+        sendToUser(userId, { type: 'challenges', ...(await listChallenges(userId)) })
         return
       }
     }

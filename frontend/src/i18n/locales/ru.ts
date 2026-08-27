@@ -47,6 +47,31 @@ export const ru = {
   'consent.accept': 'Принимаю и продолжаю',
   'consent.hint': 'Согласие запрашивается один раз.',
 
+  // ─── Вызов на бой и друзья ────────────────────────────────────────────────
+  'challenge.incoming.title': 'зовёт тебя на бой',
+  'challenge.accept': 'Принять вызов',
+  'challenge.decline': 'Отказаться',
+  'challenge.expiresIn': 'Вызов действует ещё {seconds} сек',
+  'challenge.waiting': 'Ждём ответа: {name}',
+  'challenge.sent': 'Вызов отправлен',
+  'challenge.declined': 'Друг отказался от боя',
+  'challenge.expired': 'Друг не ответил на вызов',
+  'challenge.call': 'Вызвать',
+  'challenge.callTitle': 'Вызвать на бой',
+  'challenge.send': 'Вызвать сейчас',
+  'friends.title': 'Друзья',
+  'friends.source.invited': 'по твоей ссылке',
+  'friends.source.inviter': 'пригласил тебя',
+  'friends.source.played': 'играли вместе',
+  'friends.record': 'сыграно {games} · {wins}:{losses}',
+  'friends.neverPlayed': 'ещё не играли',
+  'friends.offline': 'не в сети',
+  'friends.inviteByLink': 'Ссылкой',
+  'friends.empty': 'Друзей пока нет',
+  'friends.empty.hint':
+    'Telegram не показывает список контактов никому. Здесь появятся те, кто зайдёт по твоей ссылке, и те, с кем ты сыграешь.',
+  'friends.empty.action': 'Пригласить друга',
+
   // ─── Главный экран ────────────────────────────────────────────────────────
   'home.menu': 'Меню',
   'home.balance': 'Баланс медяков',

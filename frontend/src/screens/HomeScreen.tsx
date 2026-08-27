@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { StatChip } from '../components/ui'
 import { useAppChrome } from '../components/AppMenu'
 import { InviteSheet } from '../sheets/InviteSheet'
@@ -7,7 +7,8 @@ import { useAppState } from '../state/AppState'
 import { ECONOMY } from '../config/economy'
 import { rankFor } from '../lib/game'
 import { formatCoins, formatRelative, formatRounds } from '../lib/format'
-import { FRIENDS } from '../data/mock'
+import { FRIENDS, avatarEmoji } from '../data/mock'
+import { useFriends } from '../state/useFriends'
 import { useRecentGames } from '../state/useRecentGames'
 import { hapticNotify } from '../telegram/sdk'
 import type { MatchConfig, Tab } from '../types'
@@ -41,7 +42,24 @@ export function HomeScreen({
   const [gamesExpanded, setGamesExpanded] = useState(false)
 
   const rank = rankFor(rating)
-  const friendsOnline = FRIENDS.filter((f) => f.online).length
+  // Друзья настоящие: те, с кем есть общая история в игре.
+  const { friends, live: friendsLive } = useFriends()
+  const friendList = useMemo(
+    () =>
+      friends.map((f) => ({
+        id: f.id,
+        name: f.nickname,
+        avatar: avatarEmoji(f.avatarId),
+        rating: f.rating,
+        bet: ECONOMY.BET_PRESETS[1] ?? ECONOMY.MIN_BET,
+        rounds: 3,
+        online: f.online,
+      })),
+    [friends],
+  )
+  const friendsOnline = friendsLive
+    ? friendList.filter((f) => f.online).length
+    : FRIENDS.filter((f) => f.online).length
   const { games: recentGames } = useRecentGames()
   const visibleGames = gamesExpanded ? recentGames : recentGames.slice(0, 3)
   const winrate = stats.games > 0 ? Math.round((stats.wins / stats.games) * 100) : 0
@@ -53,6 +71,7 @@ export function HomeScreen({
 
       {inviteOpen && (
         <InviteSheet
+          friends={friendsLive ? friendList : undefined}
           onClose={() => setInviteOpen(false)}
           onInvite={(config) => {
             setInviteOpen(false)

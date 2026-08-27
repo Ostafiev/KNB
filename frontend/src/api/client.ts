@@ -191,6 +191,33 @@ export interface OpenMatchView {
   host: { id: number; nickname: string; avatarId: string; rating: number }
 }
 
+/** Друг: человек, с которым у игрока есть общая история в игре. */
+export interface FriendView {
+  id: number
+  nickname: string
+  avatarId: string
+  rating: number
+  online: boolean
+  /** Откуда он в списке: пришёл по ссылке, пригласил меня, играли вместе. */
+  source: 'invited' | 'inviter' | 'played'
+  games: number
+  wins: number
+  losses: number
+  lastPlayedAt: string | null
+  bonusPaid: boolean
+}
+
+/** Вызов на бой, ждущий ответа. */
+export interface ChallengeView {
+  matchId: number
+  from: { id: number; nickname: string; avatarId: string; rating: number }
+  to: { id: number; nickname: string; avatarId: string; rating: number }
+  bet: number
+  rounds: number
+  condition: string | null
+  expiresAt: number
+}
+
 export interface TransactionView {
   id: number
   type: string
@@ -306,6 +333,10 @@ export const api = {
 
   getReferrals(): Promise<ReferralSummaryView> {
     return request('/me/referrals')
+  },
+
+  getFriends(): Promise<{ friends: FriendView[] }> {
+    return request('/me/friends')
   },
 
   /** Отправка событий. Ошибки глотаются: аналитика не должна ломать игру. */

@@ -16,7 +16,8 @@
     "verify:stage2": "tsx --env-file=.env src/dev/verifyStage2.ts",
     "verify:stage4": "tsx --env-file=.env src/dev/verifyStage4.ts",
     "verify:stage5": "tsx --env-file=.env src/dev/verifyStage5.ts",
-    "verify:stage6": "tsx --env-file=.env src/dev/verifyStage6.ts"
+    "verify:stage6": "tsx --env-file=.env src/dev/verifyStage6.ts",
+    "verify:stage7": "tsx --env-file=.env src/dev/verifyStage7.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",

@@ -49,6 +49,31 @@ export const en: Record<TranslationKey, string> = {
   'consent.accept': 'Accept and continue',
   'consent.hint': 'We ask for this only once.',
 
+  // ─── Challenges and friends ───────────────────────────────────────────────
+  'challenge.incoming.title': 'is challenging you',
+  'challenge.accept': 'Accept',
+  'challenge.decline': 'Decline',
+  'challenge.expiresIn': 'Expires in {seconds}s',
+  'challenge.waiting': 'Waiting for {name}',
+  'challenge.sent': 'Challenge sent',
+  'challenge.declined': 'Your friend declined',
+  'challenge.expired': 'Your friend did not answer',
+  'challenge.call': 'Challenge',
+  'challenge.callTitle': 'Challenge to a match',
+  'challenge.send': 'Challenge now',
+  'friends.title': 'Friends',
+  'friends.source.invited': 'joined via your link',
+  'friends.source.inviter': 'invited you',
+  'friends.source.played': 'played together',
+  'friends.record': '{games} played · {wins}:{losses}',
+  'friends.neverPlayed': 'never played',
+  'friends.offline': 'offline',
+  'friends.inviteByLink': 'Send link',
+  'friends.empty': 'No friends yet',
+  'friends.empty.hint':
+    'Telegram does not share contact lists with anyone. People who join via your link, and those you play, will show up here.',
+  'friends.empty.action': 'Invite a friend',
+
   // ─── Home ─────────────────────────────────────────────────────────────────
   'home.menu': 'Menu',
   'home.balance': 'Coin balance',
