@@ -10,14 +10,25 @@ import { formatCoins } from '../lib/format'
  * Правка 16: в баре только цифра баланса; кнопка «Пополнить» живёт
  * в карточке баланса на главной, чтобы не дублироваться.
  */
-export function TopBar({ onMenu }: { onMenu: () => void }) {
+export function TopBar({ onMenu, onHome }: { onMenu: () => void; onHome?: () => void }) {
   const t = useT()
   const { lang } = useI18n()
   const { balance } = useAppState()
 
   return (
     <div className="flex items-center justify-between pt-2 pb-1">
-      <div className="text-xl font-black text-tg-text tracking-tight">КНБ</div>
+      {/* Логотип работает как кнопка «домой» — так его и пробуют нажать. */}
+      {onHome ? (
+        <button
+          onClick={onHome}
+          className="tappable text-xl font-black text-tg-text tracking-tight"
+          aria-label={t('home.toHome')}
+        >
+          КНБ
+        </button>
+      ) : (
+        <div className="text-xl font-black text-tg-text tracking-tight">КНБ</div>
+      )}
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 glass rounded-full px-3 py-1.5">
           <span className="text-sm">🪙</span>

@@ -24,7 +24,7 @@ export function HomeScreen({
 }) {
   const t = useT()
   const { lang } = useI18n()
-  const { topBar, menu, openTopUp } = useAppChrome()
+  const { topBar, menu } = useAppChrome()
   const {
     nickname,
     avatar,
@@ -174,33 +174,55 @@ export function HomeScreen({
         )}
       </div>
 
-      {/* Правка 19: блок начала игры сразу под профилем, выше бонуса и баланса */}
-      <div className="grid grid-cols-3 gap-2 animate-slide-up" style={{ animationDelay: '0.05s' }}>
+      {/*
+        Играть — одно большое действие, а не три равных.
+        Раньше «Найти бой», «Создать игру» и «Позвать друга» были одинаковыми
+        плитками, и глазу не за что было зацепиться. Теперь главный путь —
+        крупная кнопка, а два остальных остаются рядом, но потише.
+      */}
+      <div className="flex flex-col gap-2 animate-slide-up" style={{ animationDelay: '0.05s' }}>
         <button
           onClick={() => onOpponents('random')}
-          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-blue/30 glow-blue text-left"
+          className="tappable w-full rounded-2xl py-4 flex items-center justify-center gap-3 font-black text-lg glow-blue"
+          style={{
+            background: 'linear-gradient(135deg, var(--tg-blue) 0%, var(--tg-blue-dark) 100%)',
+            color: 'var(--tg-on-accent)',
+          }}
         >
           <span className="text-2xl">⚔️</span>
-          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.findBattle')}</span>
-          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.findBattle.sub')}</span>
+          <span>{t('home.play')}</span>
         </button>
-        <button
-          onClick={onCreate}
-          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-green/30 glow-green text-left"
-        >
-          <span className="text-2xl">✏️</span>
-          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.createGame')}</span>
-          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.createGame.sub')}</span>
-        </button>
-        {/* Правка 8: кнопка остаётся и здесь, и на карточке каждого друга */}
-        <button
-          onClick={() => setInviteOpen(true)}
-          className="tappable glass rounded-2xl p-3 flex flex-col gap-1.5 border border-tg-yellow/30 glow-yellow text-left"
-        >
-          <span className="text-2xl">🔗</span>
-          <span className="text-xs font-bold text-tg-text leading-tight">{t('home.invite')}</span>
-          <span className="text-tg-subtext leading-tight" style={{ fontSize: 10 }}>{t('home.invite.sub')}</span>
-        </button>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={onCreate}
+            className="tappable glass rounded-2xl px-3 py-3 flex items-center gap-2.5 border border-tg-border text-left"
+          >
+            <span className="text-xl flex-shrink-0">✏️</span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-tg-text leading-tight truncate">
+                {t('home.createGame')}
+              </span>
+              <span className="block text-tg-subtext leading-tight truncate" style={{ fontSize: 11 }}>
+                {t('home.createGame.sub')}
+              </span>
+            </span>
+          </button>
+          <button
+            onClick={() => setInviteOpen(true)}
+            className="tappable glass rounded-2xl px-3 py-3 flex items-center gap-2.5 border border-tg-border text-left"
+          >
+            <span className="text-xl flex-shrink-0">🔗</span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-tg-text leading-tight truncate">
+                {t('home.invite')}
+              </span>
+              <span className="block text-tg-subtext leading-tight truncate" style={{ fontSize: 11 }}>
+                {t('home.invite.sub')}
+              </span>
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Ежедневный бонус */}
@@ -254,12 +276,11 @@ export function HomeScreen({
           <div className="text-tg-subtext text-xs font-medium uppercase tracking-wider">{t('home.balance')}</div>
           <div className="text-2xl font-black text-tg-yellow">{formatCoins(balance, lang)} 🪙</div>
         </div>
-        <button
-          onClick={openTopUp}
-          className="tappable glass rounded-xl px-3 py-2 text-sm font-semibold text-tg-blue-light border border-tg-blue/30 flex-shrink-0"
-        >
-          {t('home.topUp')}
-        </button>
+        {/*
+          Кнопка «Пополнить» убрана: за ней пока ничего нет, а кнопка,
+          которая никуда не ведёт, хуже её отсутствия. Вернётся вместе
+          с рекламой и покупкой за Stars.
+        */}
       </div>
 
       {/* Правка 5: открываем сразу вкладку «Друзья» */}

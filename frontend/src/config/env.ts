@@ -31,5 +31,21 @@ export const ALLOW_DEV_LOGIN = SHOW_DEV_BAR
 /** Базовый URL API. */
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
-/** Юзернейм бота — для формирования реферальных и match-ссылок. */
-export const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME ?? 'knb_bot'
+/**
+ * Юзернейм бота — из него собираются ссылки-приглашения.
+ *
+ * Значение приходит с сервера при входе: вшитое в сборку, оно зависело от
+ * того, дошла ли переменная до сборки образа, и при малейшей оплошности
+ * ссылки вели на несуществующего бота. Значение из сборки остаётся
+ * запасным — на случай, если сервер почему-то его не прислал.
+ */
+let botUsername = import.meta.env.VITE_BOT_USERNAME ?? 'knb_bot'
+
+export function setBotUsername(name: string | undefined | null): void {
+  const clean = (name ?? '').replace(/^@/, '').trim()
+  if (clean) botUsername = clean
+}
+
+export function getBotUsername(): string {
+  return botUsername
+}

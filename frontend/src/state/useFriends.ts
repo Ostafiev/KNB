@@ -50,7 +50,9 @@ export function useFriends(): {
     }
 
     void load()
-    const timer = setInterval(() => void load(), REFRESH_MS)
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, REFRESH_MS)
 
     return () => {
       cancelled = true

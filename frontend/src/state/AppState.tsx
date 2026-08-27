@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { PlayerStats } from '../types'
 import { ECONOMY, applyServerEconomy } from '../config/economy'
-import { BOT_USERNAME } from '../config/env'
+import { getBotUsername, setBotUsername } from '../config/env'
 import { getTelegramUser } from '../telegram/sdk'
 import { api, ApiError, ApiUnavailable, clearToken, type ServerUser } from '../api/client'
 import { isTelegram } from '../telegram/sdk'
@@ -29,6 +29,8 @@ export interface ReferralState {
 
 export interface AppStateShape {
   consentAccepted: boolean
+  /** Игрок уже выбрал имя при первом входе. */
+  profileReady: boolean
   nickname: string
   avatarId: string
   telegramUsername: string
@@ -44,6 +46,7 @@ export interface AppStateShape {
 
 const DEMO_STATE: AppStateShape = {
   consentAccepted: false,
+  profileReady: false,
   nickname: 'Никита Волков',
   avatarId: 'gamepad',
   telegramUsername: 'nikita_volkov',
@@ -90,6 +93,7 @@ function fromServer(user: ServerUser, previous: AppStateShape): AppStateShape {
   return {
     ...previous,
     consentAccepted: user.consentAccepted,
+    profileReady: user.profileReady ?? false,
     nickname: user.nickname,
     avatarId: user.avatarId,
     telegramUsername: user.username ?? '',
@@ -120,6 +124,8 @@ interface AppStateValue extends AppStateShape {
   matchesToWithdraw: number
   referralLink: string
   acceptConsent: () => void
+  /** Знакомство пройдено: имя выбрано. */
+  finishProfile: () => void
   claimDailyBonus: () => void
   rewardAd: () => void
   addBalance: (delta: number) => void
@@ -157,7 +163,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     const connect = async (attempt: number): Promise<void> => {
       try {
-        const [{ economy }, user] = await Promise.all([api.getConfig(), api.login()])
+        const [{ economy, botUsername }, user] = await Promise.all([
+          api.getConfig(),
+          api.login(),
+        ])
+        setBotUsername(botUsername)
         if (cancelled) return
         applyServerEconomy(economy)
         setState((prev) => fromServer(user, prev))
@@ -211,6 +221,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (onlineRef.current) {
       void api.acceptConsent().catch(() => {
         /* согласие уже отмечено локально, сервер догонит при следующем входе */
+      })
+    }
+  }, [patch])
+
+  const finishProfile = useCallback(() => {
+    patch({ profileReady: true })
+    if (onlineRef.current) {
+      void api.finishProfile().catch(() => {
+        /* отметка уже стоит локально, сервер догонит при следующем входе */
       })
     }
   }, [patch])
@@ -325,8 +344,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
        * открывала бы переписку с ботом, где приглашённого никто не встретит:
        * бот не отвечает на сообщения, он только показывает приложение.
        */
-      referralLink: `https://t.me/${BOT_USERNAME}?startapp=ref_${state.referralCode}`,
+      referralLink: `https://t.me/${getBotUsername()}?startapp=ref_${state.referralCode}`,
       acceptConsent,
+      finishProfile,
       claimDailyBonus,
       rewardAd,
       addBalance,
@@ -340,6 +360,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     state,
     status,
     acceptConsent,
+    finishProfile,
     claimDailyBonus,
     rewardAd,
     addBalance,

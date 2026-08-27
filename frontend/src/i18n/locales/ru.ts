@@ -47,6 +47,15 @@ export const ru = {
   'consent.accept': 'Принимаю и продолжаю',
   'consent.hint': 'Согласие запрашивается один раз.',
 
+  // ─── Знакомство ───────────────────────────────────────────────────────────
+  'name.title': 'Как тебя называть?',
+  'name.subtitle': 'Это имя увидят соперники. Настоящее указывать необязательно — можно придумать любое.',
+  'name.label': 'Имя в игре',
+  'name.placeholder': 'Например: Тень',
+  'name.avatar': 'Аватар',
+  'name.done': 'Готово',
+  'name.hint': 'Имя и аватар можно поменять в профиле в любой момент.',
+
   // ─── Вызов на бой и друзья ────────────────────────────────────────────────
   'challenge.incoming.title': 'зовёт тебя на бой',
   'challenge.accept': 'Принять вызов',
@@ -62,20 +71,21 @@ export const ru = {
   'friends.title': 'Друзья',
   'friends.source.invited': 'по твоей ссылке',
   'friends.source.inviter': 'пригласил тебя',
-  'friends.source.played': 'играли вместе',
   'friends.record': 'сыграно {games} · {wins}:{losses}',
   'friends.neverPlayed': 'ещё не играли',
   'friends.offline': 'не в сети',
   'friends.inviteByLink': 'Ссылкой',
   'friends.empty': 'Друзей пока нет',
   'friends.empty.hint':
-    'Telegram не показывает список контактов никому. Здесь появятся те, кто зайдёт по твоей ссылке, и те, с кем ты сыграешь.',
+    'Telegram не показывает список контактов никому. Друзья появятся здесь, когда зайдут по твоей ссылке.',
   'friends.empty.action': 'Пригласить друга',
 
   // ─── Главный экран ────────────────────────────────────────────────────────
+  'home.toHome': 'На главную',
   'home.menu': 'Меню',
   'home.balance': 'Баланс медяков',
   'home.topUp': 'Пополнить',
+  'home.play': 'Играть',
   'home.findBattle': 'Найти бой',
   'home.findBattle.sub': 'Играй сейчас',
   'home.createGame': 'Создать игру',
@@ -149,6 +159,7 @@ export const ru = {
   'invite.message.terms': 'Ставка: {stake} · раундов: {rounds}',
   'invite.sendToFriend': 'Отправить другу в Telegram',
   'invite.justLink': 'Просто создать ссылку',
+  'invite.shareFailed': 'Telegram не открылся. Ссылка на экране ниже — скопируй и отправь вручную.',
   'invite.sendLink': 'Отправить ссылку',
 
   // ─── Рефералы ─────────────────────────────────────────────────────────────
@@ -317,7 +328,7 @@ export const ru = {
   'summary.drawn': 'Ничья — ставки возвращены',
   'summary.newBalance': 'Новый баланс',
   'summary.ratingDelta': 'Рейтинг',
-  'summary.nextBattle': '⚔️ Следующий бой',
+  'summary.nextBattle': 'Следующий бой',
   'summary.rematch': 'Реванш с этим соперником',
   'summary.mainMenu': 'В главное меню',
   'summary.waitingConfirm': 'Ожидаем подтверждения',

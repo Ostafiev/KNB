@@ -18,10 +18,13 @@ export function ConsentScreen({ onAccept }: { onAccept: () => void }) {
   const blocks = [
     { icon: '🔞', title: t('consent.age.title'), body: t('consent.age.body') },
     { icon: '📄', title: t('consent.terms.title'), body: t('consent.terms.body') },
-    // Про программу-соперника говорим здесь, до первого боя, а не мелким
-    // шрифтом где-то в правилах: человек должен знать, с кем играет.
-    { icon: '🤖', title: t('consent.bots.title'), body: t('consent.bots.body') },
   ]
+
+  /*
+   * Про программу-соперника здесь больше не пишем: экран согласия и так
+   * встречает человека стеной текста до первой игры. Это осталось
+   * в условиях использования, куда ведёт ссылка ниже.
+   */
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-5">

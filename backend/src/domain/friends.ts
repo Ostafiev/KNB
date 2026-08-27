@@ -9,18 +9,18 @@ import { isOnline } from './presence.js'
  * собирать из того, что мы про людей знаем честно:
  *
  *   1. кто пришёл по твоей ссылке-приглашению;
- *   2. кто пригласил тебя;
- *   3. с кем ты действительно играл.
+ *   2. кто пригласил тебя.
  *
- * Третий источник — самый ценный. Человек, с которым сыграно пять боёв, ближе
- * к слову «друг», чем случайный контакт из записной книжки. Боты в список не
- * попадают: дружить с программой не с чем.
+ * Случайные соперники из подбора в друзья не попадают: человек, с которым
+ * свёл случай, — не друг, и видеть его в списке друзей неожиданно. Друг —
+ * это тот, кому ты сам отправил ссылку, или тот, кто отправил её тебе.
+ * Боты не попадают тоже: дружить с программой не с чем.
  *
  * Каждая строка помнит, откуда взялась, и приложение это показывает. Список
  * без объяснения, откуда в нём люди, выглядит как утечка чужих данных.
  */
 
-export type FriendSource = 'invited' | 'inviter' | 'played'
+export type FriendSource = 'invited' | 'inviter'
 
 export interface Friend {
   id: number
@@ -70,14 +70,6 @@ export async function listFriends(userId: number, limit = 100): Promise<Friend[]
        SELECT r.referrer_id, 'inviter'::text, r.bonus_paid, 2
          FROM referrals r
         WHERE r.referred_id = $1
-       UNION ALL
-       -- Играли вместе
-       SELECT CASE WHEN m.player1_id = $1 THEN m.player2_id ELSE m.player1_id END,
-              'played'::text, FALSE, 3
-         FROM matches m
-        WHERE m.status = 'finished'
-          AND (m.player1_id = $1 OR m.player2_id = $1)
-          AND m.player1_id IS NOT NULL AND m.player2_id IS NOT NULL
      ),
      -- Один человек — одна строка: оставляем самый близкий источник.
      best AS (

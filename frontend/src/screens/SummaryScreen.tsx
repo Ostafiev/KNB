@@ -9,7 +9,7 @@ import { useAppState } from '../state/AppState'
 import { ECONOMY } from '../config/economy'
 import { HAND_EMOJI } from '../lib/game'
 import { formatCoins } from '../lib/format'
-import { hapticNotify } from '../telegram/sdk'
+import { hapticNotify, hapticSelection } from '../telegram/sdk'
 import type { MatchConfig, Outcome, RoundResult } from '../types'
 
 type RematchPhase = 'idle' | 'waiting' | 'editing' | 'opponent-confirm'
@@ -41,10 +41,11 @@ export function SummaryScreen({
 }) {
   const t = useT()
   const { lang } = useI18n()
-  const { topBar, menu } = useAppChrome()
+  const { topBar, menu } = useAppChrome({ onHome: onMenu })
   const { nickname, avatar, balance, rewardAd } = useAppState()
 
   const [phase, setPhase] = useState<RematchPhase>('idle')
+  const [roundsOpen, setRoundsOpen] = useState(false)
   const [rematchBet, setRematchBet] = useState(config.bet)
   const [rematchRounds, setRematchRounds] = useState(config.roundsTotal)
   const [rematchCondition, setRematchCondition] = useState(config.condition)
@@ -181,31 +182,60 @@ export function SummaryScreen({
         </div>
       </div>
 
-      {/* Раскладка по раундам */}
+      {/*
+        Раскладка по раундам свёрнута.
+
+        Развёрнутый список выталкивал кнопки за нижний край экрана — до них
+        приходилось прокручивать, а это первое, что человек ищет после матча.
+      */}
       {config.roundsTotal > 1 && rounds.length > 0 && (
-        <div className="glass rounded-2xl p-4">
-          <div className="text-tg-subtext text-xs uppercase tracking-wider mb-3">{t('summary.roundsRecap')}</div>
-          <div className="flex flex-col gap-2">
-            {rounds.map((round) => (
-              <div key={round.round} className="flex items-center gap-3">
-                <span className="text-tg-subtext text-xs font-mono w-4 flex-shrink-0">{round.round}</span>
-                <span className="text-xl">{HAND_EMOJI[round.opponentChoice]}</span>
-                <span className="text-tg-subtext text-xs">vs</span>
-                <span className="text-xl">{HAND_EMOJI[round.playerChoice]}</span>
-                <span
-                  className={`ml-auto text-xs font-bold ${
-                    round.outcome === 'win'
-                      ? 'text-tg-green'
-                      : round.outcome === 'lose'
-                        ? 'text-tg-red'
-                        : 'text-tg-subtext'
-                  }`}
-                >
-                  {round.outcome === 'win' ? '+1' : round.outcome === 'lose' ? '−1' : '='}
-                </span>
-              </div>
-            ))}
-          </div>
+        <div className="glass rounded-2xl overflow-hidden">
+          <button
+            onClick={() => {
+              hapticSelection()
+              setRoundsOpen((open) => !open)
+            }}
+            className="tappable w-full px-4 py-3 flex items-center gap-2 text-left"
+          >
+            <span className="text-tg-subtext text-xs uppercase tracking-wider">
+              {t('summary.roundsRecap')}
+            </span>
+            <span className="text-tg-subtext text-xs">
+              {score.player}:{score.opponent}
+            </span>
+            <span
+              className="ml-auto text-tg-subtext text-xs transition-transform duration-200"
+              style={{ transform: roundsOpen ? 'rotate(180deg)' : 'none' }}
+            >
+              ▾
+            </span>
+          </button>
+
+          {roundsOpen && (
+            <div className="flex flex-col gap-2 px-4 pb-4 animate-fade-in">
+              {rounds.map((round) => (
+                <div key={round.round} className="flex items-center gap-3">
+                  <span className="text-tg-subtext text-xs font-mono w-4 flex-shrink-0">
+                    {round.round}
+                  </span>
+                  <span className="text-xl">{HAND_EMOJI[round.opponentChoice]}</span>
+                  <span className="text-tg-subtext text-xs">vs</span>
+                  <span className="text-xl">{HAND_EMOJI[round.playerChoice]}</span>
+                  <span
+                    className={`ml-auto text-xs font-bold ${
+                      round.outcome === 'win'
+                        ? 'text-tg-green'
+                        : round.outcome === 'lose'
+                          ? 'text-tg-red'
+                          : 'text-tg-subtext'
+                    }`}
+                  >
+                    {round.outcome === 'win' ? '+1' : round.outcome === 'lose' ? '−1' : '='}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -324,10 +354,12 @@ export function SummaryScreen({
           {phase === 'idle' && (
             <>
               <PrimaryButton onClick={onNextBattle} className="py-4 text-lg">
-                {t('summary.nextBattle')}
+                <span className="text-xl">⚔️</span>
+                <span>{t('summary.nextBattle')}</span>
               </PrimaryButton>
+              {/* Реванш — это «ещё раз с ним же», отсюда стрелка по кругу */}
               <GhostButton onClick={() => setPhase('waiting')} tone="accent">
-                ⚔️ {t('summary.rematch')}
+                🔁 {t('summary.rematch')}
               </GhostButton>
             </>
           )}

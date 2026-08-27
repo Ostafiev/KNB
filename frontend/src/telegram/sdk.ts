@@ -19,7 +19,9 @@ interface TelegramWebApp {
   expand: () => void
   setHeaderColor?: (color: string) => void
   setBackgroundColor?: (color: string) => void
+  version?: string
   openTelegramLink?: (url: string) => void
+  openLink?: (url: string, options?: { try_instant_view?: boolean }) => void
   HapticFeedback?: {
     impactOccurred: (style: HapticStyle) => void
     notificationOccurred: (type: NotificationType) => void
@@ -85,17 +87,41 @@ export function hapticSelection(): void {
   getWebApp()?.HapticFeedback?.selectionChanged()
 }
 
-/** Нативный шэринг ссылки через Telegram, с фолбэком на Web Share API. */
-export function shareLink(url: string, text: string): void {
-  const wa = getWebApp()
+/**
+ * Отправка приглашения в Telegram: открывается список контактов, человек
+ * выбирает, кому отправить, и сообщение уходит готовым.
+ *
+ * Возвращает false, если открыть Telegram не удалось, — тогда экран должен
+ * подсказать другой путь, а не делать вид, что всё получилось.
+ */
+export function shareLink(url: string, text: string): boolean {
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
+  const wa = getWebApp()
+
   if (wa?.openTelegramLink) {
-    wa.openTelegramLink(shareUrl)
-    return
+    try {
+      wa.openTelegramLink(shareUrl)
+      return true
+    } catch {
+      /* старая версия Telegram — пробуем следующий способ */
+    }
   }
+
+  // Запасной путь внутри Telegram: обычное открытие ссылки.
+  if (wa?.openLink) {
+    try {
+      wa.openLink(shareUrl)
+      return true
+    } catch {
+      /* и этот не сработал */
+    }
+  }
+
+  // Вне Telegram — системное «поделиться» или новая вкладка.
   if (typeof navigator !== 'undefined' && navigator.share) {
-    navigator.share({ url, text }).catch(() => {})
-    return
+    void navigator.share({ url, text }).catch(() => {})
+    return true
   }
-  window.open(shareUrl, '_blank')
+
+  return Boolean(window.open(shareUrl, '_blank'))
 }

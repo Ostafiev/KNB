@@ -7,14 +7,13 @@ import { CHOICES, CHOICE_LABEL_KEY, HAND_EMOJI, randomChoice } from '../lib/game
 import { haptic, hapticNotify } from '../telegram/sdk'
 import type { HandChoice, MatchConfig } from '../types'
 
-/** Длительность финальной фазы тряски перед раскрытием (ЧАСТЬ 2, п.7). */
-const FINAL_SHAKE_MS = 400
+/**
+ * Слово «Старт» перед первым раундом: одно плавное появление и уход.
+ * Длительность совпадает с анимацией .animate-start-cue.
+ */
+const START_CUE_MS = 1600
 
-/** Правка 13: перед боем слово «СТАРТ» вспыхивает дважды за две секунды. */
-const FLASH_STEP_MS = 500
-const FLASH_TOTAL_MS = FLASH_STEP_MS * 4
-
-type Phase = 'intro' | 'choose' | 'final-shake'
+type Phase = 'intro' | 'choose'
 
 /**
  * Живой матч. Часы раунда идут от серверного времени: подкручивать их
@@ -48,10 +47,7 @@ export function BattleScreen({
   const { nickname, avatar, soundEnabled, setSoundEnabled } = useAppState()
 
   const [phase, setPhase] = useState<Phase>('intro')
-  /** 1 и 3 — слово видно, 0/2/4 — скрыто. */
-  const [flash, setFlash] = useState(0)
   const [selected, setSelected] = useState<HandChoice | null>(null)
-  const [idleShaking, setIdleShaking] = useState(false)
   const [roundTimer, setRoundTimer] = useState<number>(ECONOMY.ROUND_SECONDS)
   // В живом матче время вышло — ход больше не принимается, ждём вердикт сервера.
   const [expired, setExpired] = useState(false)
@@ -62,31 +58,18 @@ export function BattleScreen({
   const committed = useRef(false)
 
   /*
-   * Вступление: две вспышки слова, затем фаза выбора.
+   * Вступление: слово «Старт» показывается один раз, плавно.
    *
-   * В живом матче часы раунда уже идут, поэтому вспышку показываем только
-   * перед первым раундом — иначе вступление съедало бы время на ход.
+   * В живом матче часы раунда уже идут, поэтому вступление бывает только
+   * перед первым раундом — иначе оно съедало бы время на ход.
    */
   useEffect(() => {
     if (live && roundNumber > 1) {
       setPhase('choose')
-      setIdleShaking(true)
-      const stop = setTimeout(() => setIdleShaking(false), 2000)
-      return () => clearTimeout(stop)
+      return
     }
-
-    const timers = [
-      setTimeout(() => setFlash(1), 0),
-      setTimeout(() => setFlash(2), FLASH_STEP_MS),
-      setTimeout(() => setFlash(3), FLASH_STEP_MS * 2),
-      setTimeout(() => setFlash(4), FLASH_STEP_MS * 3),
-      setTimeout(() => {
-        setPhase('choose')
-        setIdleShaking(true)
-      }, FLASH_TOTAL_MS),
-      setTimeout(() => setIdleShaking(false), FLASH_TOTAL_MS + 2000),
-    ]
-    return () => timers.forEach(clearTimeout)
+    const timer = setTimeout(() => setPhase('choose'), START_CUE_MS)
+    return () => clearTimeout(timer)
   }, [])
 
   /**
@@ -97,9 +80,10 @@ export function BattleScreen({
     if (committed.current) return
     committed.current = true
     setSelected(choice)
-    setPhase('final-shake')
     haptic('medium')
-    setTimeout(() => onChoice(choice), FINAL_SHAKE_MS)
+    // Ход уходит сразу: раньше он ждал конца анимации, и в последнюю
+    // секунду раунда это стоило игроку хода.
+    onChoice(choice)
   }
 
   /*
@@ -141,9 +125,13 @@ export function BattleScreen({
   }, [phase, roundTimer, live])
 
   const timerUrgent = roundTimer <= 3
-  const finalShake = phase === 'final-shake'
-  const handAnimation = finalShake ? 'animate-shake-final' : idleShaking ? 'animate-shake' : 'animate-float'
-  const flashVisible = flash === 1 || flash === 3
+
+  /*
+   * Замах — только когда решили оба. Пока человек выбирает, руки спокойно
+   * висят: трясти их в этот момент незачем, это отвлекает от выбора.
+   */
+  const bothReady = Boolean(selected) && (live ? live.opponentMoved : true)
+  const handAnimation = bothReady ? 'animate-shake-final' : 'animate-float'
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom relative">
@@ -262,21 +250,18 @@ export function BattleScreen({
       <div className="flex-1 flex flex-col items-center justify-center gap-6 px-4">
         {phase === 'intro' ? (
           <div className="flex items-center justify-center h-40">
-            {flashVisible && (
-              <div
-                key={flash}
-                className="text-6xl font-black tracking-tight text-transparent bg-clip-text animate-scale-in"
-                style={{
-                  backgroundImage: 'linear-gradient(135deg, var(--tg-blue-light), var(--tg-blue))',
-                }}
-              >
-                {t('battle.start')}
-              </div>
-            )}
+            <div
+              className="text-6xl font-black tracking-tight text-transparent bg-clip-text animate-start-cue"
+              style={{
+                backgroundImage: 'linear-gradient(135deg, var(--tg-blue-light), var(--tg-blue))',
+              }}
+            >
+              {t('battle.start')}
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4 w-full animate-fade-in">
-            {/* Руки развёрнуты навстречу друг другу (правка 1/3) */}
+            {/* Руки зеркальны друг другу, как у двоих напротив */}
             <div className="flex items-center justify-center gap-8">
               <Hand choice="rock" side="left" className={`text-6xl ${handAnimation}`} />
               <div className="glass rounded-full w-10 h-10 flex items-center justify-center text-tg-red font-black text-sm glow-red">
@@ -286,7 +271,7 @@ export function BattleScreen({
                 choice="rock"
                 side="right"
                 className={`text-6xl ${handAnimation}`}
-                style={{ animationDelay: finalShake ? '0s' : '0.15s' }}
+                style={{ animationDelay: bothReady ? '0s' : '0.4s' }}
               />
             </div>
             {!selected && (

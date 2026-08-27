@@ -15,7 +15,7 @@ import type { Player } from '../types'
  * пока игрок смотрит на экран.
  */
 
-const REFRESH_MS = 3000
+const REFRESH_MS = 5000
 
 /** Открытый бой в виде карточки игрока — так его рисует существующий список. */
 function toPlayer(match: OpenMatchView): Player & { matchId: number } {
@@ -66,7 +66,13 @@ export function useOpenMatches(): {
     }
 
     void load()
-    const timer = setInterval(() => void load(), REFRESH_MS)
+    /*
+     * Пока приложение свёрнуто, опрашивать сервер незачем: это тратит
+     * связь и батарею, а список всё равно никто не видит.
+     */
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, REFRESH_MS)
 
     return () => {
       cancelled = true

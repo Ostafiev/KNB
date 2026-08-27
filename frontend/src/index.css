@@ -19,8 +19,8 @@
   --tg-bg: #17212b;
   --tg-bg2: #232e3c;
   --tg-bg3: #1c2733;
-  --tg-glass: rgba(35, 46, 60, 0.6);
-  --tg-glass-strong: rgba(35, 46, 60, 0.85);
+  --tg-glass: rgba(35, 46, 60, 0.82);
+  --tg-glass-strong: rgba(30, 40, 53, 0.97);
   --tg-glass-shadow: none;
   --tg-scrim: rgba(0, 0, 0, 0.6);
 
@@ -62,8 +62,8 @@
   --tg-bg: #eef2f7;
   --tg-bg2: #ffffff;
   --tg-bg3: #e2e8f1;
-  --tg-glass: rgba(255, 255, 255, 0.72);
-  --tg-glass-strong: rgba(255, 255, 255, 0.94);
+  --tg-glass: rgba(255, 255, 255, 0.9);
+  --tg-glass-strong: rgba(255, 255, 255, 0.99);
   --tg-glass-shadow: 0 1px 2px rgba(20, 40, 66, 0.05), 0 6px 20px rgba(20, 40, 66, 0.06);
   --tg-scrim: rgba(18, 32, 48, 0.4);
 
@@ -146,19 +146,25 @@ body {
 ::-webkit-scrollbar { display: none; }
 * { scrollbar-width: none; }
 
-/* Glassmorphism card base */
+/*
+ * Карточки.
+ *
+ * Раньше здесь стояло backdrop-filter: blur(). Выглядело красиво, но на
+ * телефоне каждый такой элемент — отдельный слой, который браузер заново
+ * размывает на каждом кадре. Их на экране больше сотни, и приложение
+ * дёргалось при любой прокрутке и анимации.
+ *
+ * Размытие убрано, вместо него чуть более плотный фон: на тёмном фоне
+ * разница почти не видна, а рывки пропадают.
+ */
 .glass {
   background: var(--tg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--tg-border);
   box-shadow: var(--tg-glass-shadow);
 }
 
 .glass-strong {
   background: var(--tg-glass-strong);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
   border: 1px solid var(--tg-border-strong);
   box-shadow: var(--tg-glass-shadow);
 }
@@ -230,6 +236,17 @@ body {
   to { opacity: 1; }
 }
 
+/*
+ * «Старт» перед боем. Раньше слово вспыхивало дважды и резко — глаз
+ * не успевал за ним. Теперь один раз: плавно вырастает и плавно тает.
+ */
+@keyframes start-cue {
+  0%   { opacity: 0; transform: scale(0.82); }
+  22%  { opacity: 1; transform: scale(1); }
+  70%  { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+
 @keyframes scale-in {
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
@@ -244,18 +261,20 @@ body {
 }
 
 /*
- * ЧАСТЬ 2, п.7 — финальная фаза тряски.
- * Последние ~400 мс перед раскрытием фигур руки трясутся заметно резче
- * и делают финальный замах, как в реальной игре на счёт «три».
+ * Замах перед раскрытием фигур.
+ *
+ * Играет тогда же, когда в жизни: оба игрока уже решили, и руки идут на счёт
+ * «раз-два-три». Раньше тряска шла в начале раунда, пока человек ещё выбирал,
+ * и была резкой — теперь три спокойных замаха и остановка.
  */
 @keyframes shake-final {
   0%   { transform: rotate(0deg) translateY(0) scale(1); }
-  12%  { transform: rotate(-26deg) translateY(-10px) scale(1.08); }
-  28%  { transform: rotate(24deg) translateY(4px) scale(1.05); }
-  44%  { transform: rotate(-24deg) translateY(-8px) scale(1.08); }
-  60%  { transform: rotate(22deg) translateY(4px) scale(1.05); }
-  76%  { transform: rotate(-18deg) translateY(-6px) scale(1.06); }
-  100% { transform: rotate(0deg) translateY(8px) scale(1.12); }
+  16%  { transform: rotate(-18deg) translateY(-12px) scale(1.04); }
+  33%  { transform: rotate(6deg) translateY(6px) scale(1); }
+  50%  { transform: rotate(-16deg) translateY(-10px) scale(1.04); }
+  66%  { transform: rotate(6deg) translateY(6px) scale(1); }
+  83%  { transform: rotate(-14deg) translateY(-8px) scale(1.05); }
+  100% { transform: rotate(0deg) translateY(6px) scale(1.08); }
 }
 
 @keyframes collision-left {
@@ -330,8 +349,12 @@ body {
   animation: shake 0.6s ease-in-out infinite;
 }
 
+.animate-start-cue {
+  animation: start-cue 1.6s ease-in-out forwards;
+}
+
 .animate-shake-final {
-  animation: shake-final 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+  animation: shake-final 0.95s cubic-bezier(0.4, 0, 0.3, 1) forwards;
 }
 
 .animate-collision-left {

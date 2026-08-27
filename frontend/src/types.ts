@@ -1,6 +1,7 @@
 export type Screen =
   | 'splash'
   | 'consent'
+  | 'name'
   | 'home'
   | 'opponents'
   | 'create'

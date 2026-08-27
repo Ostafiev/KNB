@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requireAuth } from './auth.js'
-import { acceptConsent, claimDailyBonus, toPublicUser, updateProfile } from '../domain/users.js'
+import {
+  acceptConsent,
+  claimDailyBonus,
+  markProfileReady,
+  toPublicUser,
+  updateProfile,
+} from '../domain/users.js'
 import { query } from '../db/client.js'
 
 const AVATAR_IDS = [
@@ -38,6 +44,12 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
   /** Экран согласия проходится один раз (ЧАСТЬ 2, п.13). */
   app.post('/api/me/consent', { preHandler: requireAuth }, async (request) => {
     const updated = await acceptConsent(request.currentUser!.id)
+    return { user: toPublicUser(updated!) }
+  })
+
+  /** Знакомство пройдено: игрок выбрал себе имя при первом входе. */
+  app.post('/api/me/profile-ready', { preHandler: requireAuth }, async (request) => {
+    const updated = await markProfileReady(request.currentUser!.id)
     return { user: toPublicUser(updated!) }
   })
 

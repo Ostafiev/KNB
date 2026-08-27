@@ -110,6 +110,8 @@ export interface ServerUser {
   stats: PlayerStats
   referralCode: string
   consentAccepted: boolean
+  /** Игрок уже выбрал имя при первом входе. */
+  profileReady?: boolean
   dailyBonusAvailable: boolean
   isNew: boolean
 }
@@ -199,7 +201,7 @@ export interface FriendView {
   rating: number
   online: boolean
   /** Откуда он в списке: пришёл по ссылке, пригласил меня, играли вместе. */
-  source: 'invited' | 'inviter' | 'played'
+  source: 'invited' | 'inviter'
   games: number
   wins: number
   losses: number
@@ -265,7 +267,7 @@ export const api = {
     return result.user
   },
 
-  getConfig(): Promise<{ economy: ServerEconomy }> {
+  getConfig(): Promise<{ economy: ServerEconomy; botUsername?: string }> {
     return request('/config', { auth: false })
   },
 
@@ -285,6 +287,10 @@ export const api = {
 
   acceptConsent(): Promise<{ user: ServerUser }> {
     return request('/me/consent', { method: 'POST' })
+  },
+
+  finishProfile(): Promise<{ user: ServerUser }> {
+    return request('/me/profile-ready', { method: 'POST' })
   },
 
   claimDailyBonus(): Promise<{ granted: boolean; amount: number; balance: number }> {

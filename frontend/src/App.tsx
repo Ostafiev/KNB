@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SplashScreen } from './screens/SplashScreen'
 import { ConsentScreen } from './screens/ConsentScreen'
+import { NameScreen } from './screens/NameScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { OpponentsScreen } from './screens/OpponentsScreen'
 import { CreateScreen } from './screens/CreateScreen'
@@ -59,8 +60,17 @@ function roundsFromServer(view: MatchView): RoundResult[] {
 }
 
 export default function App() {
-  const { consentAccepted, acceptConsent, balance, rating, recordMatch, status, demoPlayAllowed } =
-    useAppState()
+  const {
+    consentAccepted,
+    acceptConsent,
+    profileReady,
+    finishProfile,
+    balance,
+    rating,
+    recordMatch,
+    status,
+    demoPlayAllowed,
+  } = useAppState()
   const live = useLiveMatch()
   const t = useT()
 
@@ -83,6 +93,20 @@ export default function App() {
   }, [])
 
   const go = useCallback((next: Screen) => setScreen(next), [])
+
+  /*
+   * Заставка — приветствие, а не пропускной пункт. Тому, кто уже играл,
+   * она не нужна: он открыл приложение, чтобы играть, а не нажимать
+   * «Начать игру» ещё раз. Поэтому вернувшийся сразу попадает на главную.
+   */
+  const greeted = useRef(false)
+  useEffect(() => {
+    if (greeted.current || screen !== 'splash') return
+    if (status === 'connecting') return
+    if (!consentAccepted) return
+    greeted.current = true
+    go(profileReady ? 'home' : 'name')
+  }, [screen, status, consentAccepted, profileReady, go])
 
   const openOpponents = useCallback(
     (tab: Tab) => {
@@ -114,9 +138,15 @@ export default function App() {
         setInviteLink(null)
         go('battle')
         return
-      case 'round_result':
-        go('result')
-        return
+      case 'round_result': {
+        /*
+         * Небольшая задержка: за неё в бою успевает пройти замах — руки
+         * сходятся на счёт «три», и только потом открываются фигуры.
+         * Сервер держит паузу между раундами дольше, так что времени хватает.
+         */
+        const timer = setTimeout(() => go('result'), 750)
+        return () => clearTimeout(timer)
+      }
       case 'round_started':
         go('battle')
         return
@@ -219,7 +249,7 @@ export default function App() {
                * матч действительно заведён и за ней что-то стоит.
                */
               if (options.share) {
-                shareLink(
+                const opened = shareLink(
                   buildInviteUrl(startParam),
                   buildInviteMessage(t, {
                     bet: config.bet,
@@ -227,9 +257,17 @@ export default function App() {
                     condition: config.condition,
                   }),
                 )
+                // Молча ничего не открыть — худший исход: человек думает,
+                // что отправил, а друг ничего не получил.
+                if (!opened) setLiveError(t('invite.shareFailed'))
               }
             })
-            .catch(() => setLiveError('Не удалось создать приглашение'))
+            .catch((error: unknown) => {
+              // Показываем настоящую причину: «не удалось» ничего не объясняет.
+              const message =
+                error instanceof Error && error.message ? error.message : 'Не удалось создать приглашение'
+              setLiveError(message)
+            })
         } else {
           live.queue(config.bet, config.roundsTotal)
         }
@@ -398,13 +436,24 @@ export default function App() {
   const screens = (
     <>
         {screen === 'splash' && (
-          <SplashScreen onPlay={() => go(consentAccepted ? 'home' : 'consent')} />
+          <SplashScreen
+            onPlay={() => go(!consentAccepted ? 'consent' : profileReady ? 'home' : 'name')}
+          />
         )}
 
         {screen === 'consent' && (
           <ConsentScreen
             onAccept={() => {
               acceptConsent()
+              go(profileReady ? 'home' : 'name')
+            }}
+          />
+        )}
+
+        {screen === 'name' && (
+          <NameScreen
+            onDone={() => {
+              finishProfile()
               go('home')
             }}
           />
@@ -435,6 +484,7 @@ export default function App() {
             onCancel={leaveMatch}
             bet={activeConfig.bet}
             rounds={activeConfig.roundsTotal}
+            condition={activeConfig.condition}
             inviteStartParam={inviteLink}
           />
         )}

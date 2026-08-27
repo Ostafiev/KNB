@@ -24,6 +24,7 @@ export interface UserRow {
   referred_by: number | null
   last_daily_bonus_on: string | null
   consent_accepted_at: string | null
+  profile_ready_at: string | null
   banned_at: string | null
   created_at: string
 }
@@ -43,6 +44,8 @@ export interface PublicUser {
   stats: { games: number; wins: number; losses: number; draws: number }
   referralCode: string
   consentAccepted: boolean
+  /** Игрок уже выбрал себе имя — знакомство больше не показываем. */
+  profileReady: boolean
   dailyBonusAvailable: boolean
   isNew: boolean
 }
@@ -71,6 +74,7 @@ export function toPublicUser(row: UserRow, isNew = false): PublicUser {
     },
     referralCode: row.referral_code,
     consentAccepted: row.consent_accepted_at !== null,
+    profileReady: row.profile_ready_at !== null,
     dailyBonusAvailable: row.last_daily_bonus_on !== todayUtc(),
     isNew,
   }
@@ -234,6 +238,22 @@ export async function updateProfile(userId: number, patch: ProfilePatch): Promis
   return queryOne<UserRow>(
     `UPDATE users SET ${fields.join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`,
     values,
+  )
+}
+
+/**
+ * Знакомство пройдено: игрок выбрал имя.
+ *
+ * Отметка живёт на сервере, а не в памяти телефона: со сменой устройства
+ * спрашивать имя заново незачем.
+ */
+export async function markProfileReady(userId: number): Promise<UserRow | null> {
+  return queryOne<UserRow>(
+    `UPDATE users
+        SET profile_ready_at = COALESCE(profile_ready_at, now()), updated_at = now()
+      WHERE id = $1
+    RETURNING *`,
+    [userId],
   )
 }
 

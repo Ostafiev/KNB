@@ -12,6 +12,7 @@ import { useI18n } from '../i18n'
 export const SCREEN_ORDER: Screen[] = [
   'splash',
   'consent',
+  'name',
   'home',
   'opponents',
   'create',
@@ -24,6 +25,7 @@ export const SCREEN_ORDER: Screen[] = [
 const SCREEN_LABELS: Record<Screen, string> = {
   splash: 'Заставка',
   consent: 'Согласие',
+  name: 'Знакомство',
   home: 'Главная',
   opponents: 'Соперники',
   create: 'Создать игру',

@@ -49,6 +49,15 @@ export const en: Record<TranslationKey, string> = {
   'consent.accept': 'Accept and continue',
   'consent.hint': 'We ask for this only once.',
 
+  // ─── Getting acquainted ───────────────────────────────────────────────────
+  'name.title': 'What should we call you?',
+  'name.subtitle': 'Opponents will see this name. It does not have to be your real one — pick anything.',
+  'name.label': 'Name in the game',
+  'name.placeholder': 'For example: Shadow',
+  'name.avatar': 'Avatar',
+  'name.done': 'Done',
+  'name.hint': 'You can change the name and avatar in your profile at any time.',
+
   // ─── Challenges and friends ───────────────────────────────────────────────
   'challenge.incoming.title': 'is challenging you',
   'challenge.accept': 'Accept',
@@ -64,20 +73,21 @@ export const en: Record<TranslationKey, string> = {
   'friends.title': 'Friends',
   'friends.source.invited': 'joined via your link',
   'friends.source.inviter': 'invited you',
-  'friends.source.played': 'played together',
   'friends.record': '{games} played · {wins}:{losses}',
   'friends.neverPlayed': 'never played',
   'friends.offline': 'offline',
   'friends.inviteByLink': 'Send link',
   'friends.empty': 'No friends yet',
   'friends.empty.hint':
-    'Telegram does not share contact lists with anyone. People who join via your link, and those you play, will show up here.',
+    'Telegram does not share contact lists with anyone. Friends appear here once they join through your link.',
   'friends.empty.action': 'Invite a friend',
 
   // ─── Home ─────────────────────────────────────────────────────────────────
+  'home.toHome': 'Home',
   'home.menu': 'Menu',
   'home.balance': 'Coin balance',
   'home.topUp': 'Top up',
+  'home.play': 'Play',
   'home.findBattle': 'Find a match',
   'home.findBattle.sub': 'Play now',
   'home.createGame': 'Create a game',
@@ -151,6 +161,7 @@ export const en: Record<TranslationKey, string> = {
   'invite.message.terms': 'Stake: {stake} · rounds: {rounds}',
   'invite.sendToFriend': 'Send to a friend on Telegram',
   'invite.justLink': 'Just create a link',
+  'invite.shareFailed': 'Telegram did not open. Copy the link below and send it yourself.',
   'invite.sendLink': 'Send a link',
 
   // ─── Referrals ────────────────────────────────────────────────────────────
@@ -319,7 +330,7 @@ export const en: Record<TranslationKey, string> = {
   'summary.drawn': 'Draw — bets returned',
   'summary.newBalance': 'New balance',
   'summary.ratingDelta': 'Rating',
-  'summary.nextBattle': '⚔️ Next match',
+  'summary.nextBattle': 'Next battle',
   'summary.rematch': 'Rematch this opponent',
   'summary.mainMenu': 'Main menu',
   'summary.waitingConfirm': 'Waiting for confirmation',

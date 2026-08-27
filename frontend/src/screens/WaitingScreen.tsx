@@ -3,18 +3,21 @@ import { useAppChrome } from '../components/AppMenu'
 import { useI18n, useT } from '../i18n'
 import { formatRounds } from '../lib/format'
 import { ECONOMY } from '../config/economy'
-import { BOT_USERNAME } from '../config/env'
+import { buildInviteMessage, buildInviteUrl } from '../lib/invite'
 import { shareLink } from '../telegram/sdk'
 
 export function WaitingScreen({
   onCancel,
   bet,
   rounds,
+  condition,
   inviteStartParam,
 }: {
   onCancel: () => void
   bet: number
   rounds: number
+  /** Условие пари — оно должно попасть и в сообщение другу. */
+  condition?: string
   /**
    * Матч с другом ждёт не случайного соперника, а конкретного человека
    * по ссылке. Тогда вместо «ищем соперника» показываем саму ссылку.
@@ -28,8 +31,15 @@ export function WaitingScreen({
   const [copied, setCopied] = useState(false)
 
   const inviteUrl = inviteStartParam
-    ? `https://t.me/${BOT_USERNAME}?startapp=${inviteStartParam}`
+    ? buildInviteUrl(inviteStartParam)
     : null
+
+  /*
+   * И кнопка «отправить», и «скопировать» дают одно и то же готовое
+   * сообщение: вызов, условие пари, ставка и раунды. Голая ссылка без
+   * условия — это не то, ради чего человек писал другу.
+   */
+  const inviteMessage = buildInviteMessage(t, { bet, rounds, condition })
 
   useEffect(() => {
     const timer = setInterval(() => setDots((d) => (d + 1) % 4), 500)
@@ -82,7 +92,7 @@ export function WaitingScreen({
               {inviteUrl}
             </div>
             <button
-              onClick={() => shareLink(inviteUrl, t('waiting.invite.hint'))}
+              onClick={() => shareLink(inviteUrl, inviteMessage)}
               className="tappable w-full py-3.5 rounded-2xl font-bold text-tg-text glass-strong border border-tg-blue/40"
             >
               {t('waiting.invite.share')}
@@ -90,7 +100,7 @@ export function WaitingScreen({
             <button
               onClick={() => {
                 void navigator.clipboard
-                  ?.writeText(inviteUrl)
+                  ?.writeText(`${inviteMessage}\n${inviteUrl}`)
                   .then(() => setCopied(true))
                   .catch(() => setCopied(false))
               }}

@@ -61,11 +61,11 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
  * Верхний бар + меню одним вызовом — чтобы каждый экран не повторял
  * одинаковый стейт. Возвращает готовые элементы для вставки в разметку.
  */
-export function useAppChrome() {
+export function useAppChrome(options: { onHome?: () => void } = {}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
   return {
-    topBar: <TopBar onMenu={() => setMenuOpen(true)} />,
+    topBar: <TopBar onMenu={() => setMenuOpen(true)} onHome={options.onHome} />,
     menu: (
       <>
         <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />

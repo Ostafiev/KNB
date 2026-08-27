@@ -17,7 +17,7 @@ export function CreateScreen({
 }) {
   const t = useT()
   const { lang } = useI18n()
-  const { topBar, menu } = useAppChrome()
+  const { topBar, menu } = useAppChrome({ onHome: onBack })
   const [mode, setMode] = useState<MatchMode>('random')
   const [bet, setBet] = useState(100)
   const [rounds, setRounds] = useState(3)

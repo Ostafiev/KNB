@@ -1,4 +1,4 @@
-import { BOT_USERNAME } from '../config/env'
+import { getBotUsername } from '../config/env'
 import { ECONOMY } from '../config/economy'
 import type { Translate } from '../i18n'
 
@@ -16,7 +16,7 @@ import type { Translate } from '../i18n'
  */
 
 export function buildInviteUrl(startParam: string): string {
-  return `https://t.me/${BOT_USERNAME}?startapp=${encodeURIComponent(startParam)}`
+  return `https://t.me/${getBotUsername()}?startapp=${encodeURIComponent(startParam)}`
 }
 
 export interface InviteTerms {

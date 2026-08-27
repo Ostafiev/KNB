@@ -36,7 +36,7 @@ export function OpponentsScreen({
 }) {
   const t = useT()
   const { lang } = useI18n()
-  const { topBar, menu } = useAppChrome()
+  const { topBar, menu } = useAppChrome({ onHome: onBack })
 
   const [tab, setTab] = useState<Tab>(initialTab)
   const [betFilter, setBetFilter] = useState<BetFilter>('all')
@@ -318,7 +318,7 @@ export function OpponentsScreen({
                   как чужие контакты, взявшиеся ниоткуда.
                 */}
                 <div className="text-tg-subtext/70 text-[11px] truncate mt-0.5">
-                  {t(`friends.source.${friend.source}` as 'friends.source.played')}
+                  {t(`friends.source.${friend.source}` as 'friends.source.invited')}
                   {!friend.online && ` · ${t('friends.offline')}`}
                 </div>
               </div>
