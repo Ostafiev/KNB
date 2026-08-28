@@ -11,6 +11,7 @@ export function WaitingScreen({
   bet,
   rounds,
   condition,
+  onShare,
   inviteStartParam,
 }: {
   onCancel: () => void
@@ -18,6 +19,8 @@ export function WaitingScreen({
   rounds: number
   /** Условие пари — оно должно попасть и в сообщение другу. */
   condition?: string
+  /** Отправка через родное окно Telegram. Если не передана — обычная ссылка. */
+  onShare?: () => void
   /**
    * Матч с другом ждёт не случайного соперника, а конкретного человека
    * по ссылке. Тогда вместо «ищем соперника» показываем саму ссылку.
@@ -92,7 +95,7 @@ export function WaitingScreen({
               {inviteUrl}
             </div>
             <button
-              onClick={() => shareLink(inviteUrl, inviteMessage)}
+              onClick={() => (onShare ? onShare() : shareLink(inviteUrl, inviteMessage))}
               className="tappable w-full py-3.5 rounded-2xl font-bold text-tg-text glass-strong border border-tg-blue/40"
             >
               {t('waiting.invite.share')}

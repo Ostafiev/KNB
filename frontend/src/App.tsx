@@ -15,11 +15,12 @@ import { DevBar } from './components/DevBar'
 import { SHOW_DEV_BAR } from './config/env'
 import { ECONOMY, eloUpdate, roundsToWin } from './config/economy'
 import { randomChoice, resolveRound } from './lib/game'
+import { api } from './api/client'
 import { useAppState } from './state/AppState'
 import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
-import { initTelegram, getStartParam, shareLink } from './telegram/sdk'
+import { initTelegram, getStartParam, shareLink, sharePreparedMessage } from './telegram/sdk'
 import { buildInviteMessage, buildInviteUrl } from './lib/invite'
 import type { MatchView } from './api/client'
 import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
@@ -166,6 +167,41 @@ export default function App() {
   }, [live.signal, liveOn, live.match?.bet, go])
 
   /**
+   * Отправка приглашения другу.
+   *
+   * Сначала просим Telegram подготовить сообщение и показываем родное окно
+   * выбора чата — то самое, где человек выбирает друга из своих контактов.
+   * Если версия Telegram старая или подготовить не удалось, остаётся прежний
+   * путь: ссылка с готовым текстом через обычное «поделиться».
+   */
+  const openShare = useCallback(
+    async (matchId: number, config: MatchConfig) => {
+      const fallback = (): void => {
+        const opened = shareLink(
+          buildInviteUrl(`match_${matchId}`),
+          buildInviteMessage(t, {
+            bet: config.bet,
+            rounds: config.roundsTotal,
+            condition: config.condition,
+          }),
+        )
+        // Молча ничего не открыть — худший исход: человек думает,
+        // что отправил, а друг ничего не получил.
+        if (!opened) setLiveError(t('invite.shareFailed'))
+      }
+
+      try {
+        const prepared = await api.prepareShare(matchId)
+        if (prepared.preparedMessageId && sharePreparedMessage(prepared.preparedMessageId)) return
+      } catch {
+        /* сервер не смог подготовить — уходим на запасной путь */
+      }
+      fallback()
+    },
+    [t],
+  )
+
+  /**
    * Что стало с отправленным вызовом. Друг мог отказаться или не ответить —
    * без сообщения окно просто исчезло бы, и это выглядело бы как сбой.
    */
@@ -240,7 +276,8 @@ export default function App() {
               rounds: config.roundsTotal,
               condition: config.condition || undefined,
             })
-            .then(({ startParam }) => {
+            .then(({ match: created, startParam }) => {
+              const matchId = created.id
               setInviteLink(startParam)
               /*
                * Главный способ, которым игра расходится между людьми:
@@ -249,17 +286,7 @@ export default function App() {
                * матч действительно заведён и за ней что-то стоит.
                */
               if (options.share) {
-                const opened = shareLink(
-                  buildInviteUrl(startParam),
-                  buildInviteMessage(t, {
-                    bet: config.bet,
-                    rounds: config.roundsTotal,
-                    condition: config.condition,
-                  }),
-                )
-                // Молча ничего не открыть — худший исход: человек думает,
-                // что отправил, а друг ничего не получил.
-                if (!opened) setLiveError(t('invite.shareFailed'))
+                void openShare(matchId, config)
               }
             })
             .catch((error: unknown) => {
@@ -275,7 +302,7 @@ export default function App() {
 
       go('waiting')
     },
-    [balance, go, liveOn, live, demoPlayAllowed, status, t],
+    [balance, go, liveOn, live, demoPlayAllowed, status, t, openShare],
   )
 
   /** Правка 14: «Следующий бой» — новый соперник, условия те же, без подтверждений. */
@@ -485,6 +512,11 @@ export default function App() {
             bet={activeConfig.bet}
             rounds={activeConfig.roundsTotal}
             condition={activeConfig.condition}
+            onShare={
+              inviteLink
+                ? () => void openShare(Number(inviteLink.replace('match_', '')), activeConfig)
+                : undefined
+            }
             inviteStartParam={inviteLink}
           />
         )}

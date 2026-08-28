@@ -13,6 +13,8 @@ import {
 import { buildMatchView } from '../domain/matchView.js'
 import { getReferralSummary } from '../domain/referrals.js'
 import { listFriends } from '../domain/friends.js'
+import { buildInviteMessage } from '../domain/inviteMessage.js'
+import { savePreparedInlineMessage, TelegramApiError } from '../lib/telegramApi.js'
 import { listOpenMatches } from '../domain/matchmaking.js'
 import { recordEvent } from '../domain/events.js'
 import { announceMatchStart } from '../ws/hub.js'
@@ -136,6 +138,63 @@ export async function matchRoutes(app: FastifyInstance): Promise<void> {
           return reply
             .code(matchErrorStatus(error.code))
             .send({ error: error.code, message: error.message })
+        }
+        throw error
+      }
+    },
+  )
+
+  /**
+   * Готовит приглашение к отправке в Telegram.
+   *
+   * Telegram придерживает сообщение у себя и отдаёт короткий идентификатор.
+   * Приложение показывает по нему родное окно выбора чата — то самое, где
+   * человек выбирает друга из своего списка контактов. Само сообщение никуда
+   * не уходит, пока получателя не выбрали.
+   */
+  app.post<{ Params: { id: string } }>(
+    '/api/matches/:id/share',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const matchId = Number(request.params.id)
+      if (!Number.isSafeInteger(matchId)) {
+        return reply.code(400).send({ error: 'bad_request' })
+      }
+
+      const match = await getMatch(matchId)
+      if (!match) return reply.code(404).send({ error: 'match_not_found' })
+
+      const me = request.currentUser!
+      if (match.player1_id !== me.id) {
+        return reply.code(403).send({ error: 'not_a_player' })
+      }
+
+      const message = buildInviteMessage(match, me.language === 'en' ? 'en' : 'ru')
+
+      try {
+        const prepared = await savePreparedInlineMessage({
+          telegramUserId: Number(me.telegram_id),
+          ...message,
+        })
+        return reply.send({
+          preparedMessageId: prepared.id,
+          expiresAt: prepared.expiration_date * 1000,
+          text: message.text,
+          url: message.buttonUrl,
+        })
+      } catch (error) {
+        if (error instanceof TelegramApiError) {
+          /*
+           * Не беда: приложение покажет ссылку и обычное «поделиться».
+           * Отдаём текст и адрес, чтобы запасной путь выглядел так же.
+           */
+          request.log.warn({ code: error.code, matchId }, 'не удалось подготовить приглашение')
+          return reply.code(200).send({
+            preparedMessageId: null,
+            reason: error.code,
+            text: message.text,
+            url: message.buttonUrl,
+          })
         }
         throw error
       }

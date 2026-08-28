@@ -20,6 +20,8 @@ interface TelegramWebApp {
   setHeaderColor?: (color: string) => void
   setBackgroundColor?: (color: string) => void
   version?: string
+  isVersionAtLeast?: (version: string) => boolean
+  shareMessage?: (preparedMessageId: string, callback?: (sent: boolean) => void) => void
   openTelegramLink?: (url: string) => void
   openLink?: (url: string, options?: { try_instant_view?: boolean }) => void
   HapticFeedback?: {
@@ -85,6 +87,30 @@ export function hapticNotify(type: NotificationType): void {
 
 export function hapticSelection(): void {
   getWebApp()?.HapticFeedback?.selectionChanged()
+}
+
+/**
+ * Родное окно Telegram «кому отправить».
+ *
+ * Это то самое окно со списком чатов. Сообщение к этому моменту уже готово
+ * на стороне Telegram — приложение лишь называет его номер. Пока получателя
+ * не выбрали, никуда ничего не уходит.
+ *
+ * Работает с Telegram 8.0 и новее; в старых версиях метода просто нет,
+ * и тогда остаётся прежний путь через ссылку.
+ */
+export function sharePreparedMessage(
+  preparedMessageId: string,
+  onResult?: (sent: boolean) => void,
+): boolean {
+  const wa = getWebApp()
+  if (!wa?.shareMessage) return false
+  try {
+    wa.shareMessage(preparedMessageId, onResult)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**

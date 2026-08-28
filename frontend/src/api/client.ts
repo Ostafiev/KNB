@@ -317,6 +317,19 @@ export const api = {
     return request(`/matches/open${query ? `?${query}` : ''}`)
   },
 
+  /**
+   * Просит сервер подготовить приглашение к отправке в Telegram.
+   * Возвращает номер готового сообщения — по нему открывается окно выбора чата.
+   */
+  prepareShare(matchId: number): Promise<{
+    preparedMessageId: string | null
+    reason?: string
+    text: string
+    url: string
+  }> {
+    return request(`/matches/${matchId}/share`, { method: 'POST' })
+  },
+
   joinMatch(matchId: number): Promise<{ match: MatchView }> {
     return request(`/matches/${matchId}/join`, { method: 'POST' })
   },
