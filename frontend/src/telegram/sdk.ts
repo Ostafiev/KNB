@@ -138,6 +138,19 @@ export function telegramDiagnostics(): string {
 }
 
 /**
+ * Один раз обжёгшись, второй раз не зовём.
+ *
+ * Внутри telegram-web-app.js есть засов: перед показом окна он взводится, а
+ * снимается только ответом клиента. Клиент, который команду не понимает,
+ * ответа не шлёт — засов остаётся взведённым до перезагрузки страницы, и
+ * каждая следующая попытка мгновенно падает с WebAppShareMessageOpened.
+ *
+ * Значит, окно нам в этой сессии больше не покажут. Помним об этом и сразу
+ * идём запасным путём, вместо того чтобы снова упереться в тот же засов.
+ */
+let chatPickerUnusable = false
+
+/**
  * Просит Telegram показать окно выбора чата.
  *
  * Возвращает текст ошибки, а не просто «не вышло»: причина отказа —
@@ -149,14 +162,60 @@ export function sharePreparedMessage(
 ): { ok: true } | { ok: false; error: string } {
   const wa = getWebApp()
   if (!wa?.shareMessage) return { ok: false, error: 'метода нет в этой версии' }
+  if (chatPickerUnusable) return { ok: false, error: 'клиент не отвечает на эту команду' }
+
   try {
-    wa.shareMessage(preparedMessageId, onResult)
+    // Ответ клиента снимает засов — поэтому обработчик передаём всегда,
+    // даже когда результат отправки нам самим не нужен.
+    wa.shareMessage(preparedMessageId, (sent) => onResult?.(sent))
     return { ok: true }
   } catch (error) {
     const text =
       error instanceof Error ? error.message : typeof error === 'string' ? error : 'неизвестно'
+    if (text.includes('ShareMessageOpened')) chatPickerUnusable = true
     return { ok: false, error: text }
   }
+}
+
+/** Показывал ли клиент, что окно выбора чата ему не по силам. */
+export function chatPickerBroken(): boolean {
+  return chatPickerUnusable
+}
+
+/** Сколько ждём, прежде чем решить, что команду молча проглотили. */
+const PICKER_SILENCE_MS = 1500
+
+/**
+ * Открыть окно выбора чата — и честно понять, открылось ли оно.
+ *
+ * Клиент, который команду не понимает, не отвечает отказом: он просто молчит,
+ * и приложение остаётся в уверенности, что окно перед человеком. Поэтому
+ * ждём полторы секунды и смотрим, у нас ли ещё фокус. Если родное окно
+ * действительно вышло — фокус ушло ему, и мы не мешаем. Если фокус всё ещё
+ * наш, а ответа нет, значит показывать нечего: команду проглотили.
+ *
+ * Проверка по фокусу, а не по таймеру: человек может выбирать чат минуту,
+ * и вываливать ему поверх открытого окна второе было бы хуже молчания.
+ */
+export async function openChatPicker(
+  preparedMessageId: string,
+): Promise<'opened' | 'ignored' | { error: string }> {
+  let answered = false
+  const started = sharePreparedMessage(preparedMessageId, () => {
+    answered = true
+  })
+  if (!started.ok) return { error: started.error }
+
+  await new Promise((resolve) => setTimeout(resolve, PICKER_SILENCE_MS))
+  if (answered) return 'opened'
+
+  const focused = typeof document !== 'undefined' && document.hasFocus()
+  const visible = typeof document === 'undefined' || document.visibilityState === 'visible'
+  if (focused && visible) {
+    chatPickerUnusable = true
+    return 'ignored'
+  }
+  return 'opened'
 }
 
 /**

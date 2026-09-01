@@ -25,7 +25,8 @@ import {
   initTelegram,
   getStartParam,
   shareLink,
-  sharePreparedMessage,
+  chatPickerBroken,
+  openChatPicker,
   telegramDiagnostics,
 } from './telegram/sdk'
 import { buildInviteMessage, buildInviteUrl } from './lib/invite'
@@ -193,19 +194,28 @@ export default function App() {
       let reason = ''
       try {
         const prepared = await api.prepareShare(matchId)
-        if (prepared.preparedMessageId) {
-          const shared = sharePreparedMessage(prepared.preparedMessageId)
-          if (shared.ok) return
-          reason = `окно не открылось: ${shared.error}`
-        } else {
+        if (!prepared.preparedMessageId) {
           reason = prepared.reason ?? 'Telegram не подготовил сообщение'
+        } else if (chatPickerBroken()) {
+          // Уже знаем, что этот клиент такую команду не понимает.
+          reason = ''
+        } else {
+          const outcome = await openChatPicker(prepared.preparedMessageId)
+          if (outcome === 'opened') return
+          // «Проглотил команду» — не поломка, а предел этого клиента:
+          // молча уходим запасным путём, не пугая человека ошибкой.
+          reason = outcome === 'ignored' ? '' : `окно не открылось: ${outcome.error}`
         }
       } catch {
         reason = 'сервер не ответил'
       }
 
-      // Запасной путь: ссылка с готовым текстом через обычное «поделиться».
-      shareLink(
+      /*
+       * Запасной путь: та же ссылка с тем же текстом, но через обычное
+       * «поделиться». Окно со списком чатов тоже родное — просто открывает
+       * его Telegram по-другому, и это умеет любой клиент.
+       */
+      const sent = shareLink(
         buildInviteUrl(`match_${matchId}`),
         buildInviteMessage(t, {
           bet: config.bet,
@@ -213,7 +223,10 @@ export default function App() {
           condition: config.condition,
         }),
       )
-      setLiveError(`${t('invite.shareFailed')} · ${reason} · ${telegramDiagnostics()}`)
+
+      // Молчим, только если запасной путь сработал и жаловаться не на что.
+      if (sent && !reason) return
+      setLiveError(`${t('invite.shareFailed')} · ${reason || 'запасной путь тоже не открылся'} · ${telegramDiagnostics()}`)
     },
     [t],
   )
