@@ -194,8 +194,9 @@ export default function App() {
       try {
         const prepared = await api.prepareShare(matchId)
         if (prepared.preparedMessageId) {
-          if (sharePreparedMessage(prepared.preparedMessageId)) return
-          reason = 'Telegram не открыл окно выбора чата'
+          const shared = sharePreparedMessage(prepared.preparedMessageId)
+          if (shared.ok) return
+          reason = `окно не открылось: ${shared.error}`
         } else {
           reason = prepared.reason ?? 'Telegram не подготовил сообщение'
         }

@@ -20,6 +20,7 @@ interface TelegramWebApp {
   setHeaderColor?: (color: string) => void
   setBackgroundColor?: (color: string) => void
   version?: string
+  platform?: string
   isVersionAtLeast?: (version: string) => boolean
   shareMessage?: (preparedMessageId: string, callback?: (sent: boolean) => void) => void
   openTelegramLink?: (url: string) => void
@@ -99,27 +100,62 @@ export function hapticSelection(): void {
  * Работает с Telegram 8.0 и новее; в старых версиях метода просто нет,
  * и тогда остаётся прежний путь через ссылку.
  */
+/**
+ * Живая ли связь с самим Telegram.
+ *
+ * Данные игрока приходят в адресе страницы и читаются без всякой связи —
+ * поэтому вход может работать, а команды клиенту («открой окно выбора чата»)
+ * при этом не доходить. Связь устроена по-разному на телефоне, в Windows
+ * и в окне-рамке, поэтому проверяем все три канала.
+ */
+function bridgeKind(): string {
+  if (typeof window === 'undefined') return 'нет'
+  const w = window as unknown as {
+    TelegramWebviewProxy?: unknown
+    external?: { notify?: unknown }
+  }
+  if (w.TelegramWebviewProxy) return 'связь: телефон'
+  if (w.external && typeof w.external === 'object' && 'notify' in w.external) {
+    return 'связь: windows'
+  }
+  try {
+    if (window.parent !== window) return 'связь: рамка'
+  } catch {
+    return 'связь: рамка'
+  }
+  return 'СВЯЗИ НЕТ'
+}
+
 /** Что приложение может рассказать о себе — для разбора жалоб. */
 export function telegramDiagnostics(): string {
   const wa = getWebApp()
   if (!wa) return 'вне Telegram'
-  const parts = [`Telegram ${wa.version ?? '?'}`]
-  parts.push(wa.shareMessage ? 'выбор чата: есть' : 'выбор чата: нет')
-  parts.push(wa.openTelegramLink ? 'ссылки: есть' : 'ссылки: нет')
+  const parts = [`Telegram ${wa.version ?? '?'}`, wa.platform ?? 'платформа ?']
+  parts.push(bridgeKind())
+  parts.push(wa.shareMessage ? 'метод: есть' : 'метод: нет')
+  if (typeof window !== 'undefined') parts.push(window.location.host)
   return parts.join(' · ')
 }
 
+/**
+ * Просит Telegram показать окно выбора чата.
+ *
+ * Возвращает текст ошибки, а не просто «не вышло»: причина отказа —
+ * единственное, по чему можно чинить, а её видно только здесь.
+ */
 export function sharePreparedMessage(
   preparedMessageId: string,
   onResult?: (sent: boolean) => void,
-): boolean {
+): { ok: true } | { ok: false; error: string } {
   const wa = getWebApp()
-  if (!wa?.shareMessage) return false
+  if (!wa?.shareMessage) return { ok: false, error: 'метода нет в этой версии' }
   try {
     wa.shareMessage(preparedMessageId, onResult)
-    return true
-  } catch {
-    return false
+    return { ok: true }
+  } catch (error) {
+    const text =
+      error instanceof Error ? error.message : typeof error === 'string' ? error : 'неизвестно'
+    return { ok: false, error: text }
   }
 }
 
@@ -138,8 +174,10 @@ export function shareLink(url: string, text: string): boolean {
     try {
       wa.openTelegramLink(shareUrl)
       return true
-    } catch {
-      /* старая версия Telegram — пробуем следующий способ */
+    } catch (error) {
+      // Тот же канал связи, что и у окна выбора чата: если молчит он —
+      // молчит и запасной путь. Пишем в журнал, чтобы это было видно.
+      console.error('[КНБ] openTelegramLink не сработал', error)
     }
   }
 
