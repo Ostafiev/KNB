@@ -194,20 +194,46 @@ export async function findOrCreate(
   })
 }
 
-/** Разбирает start_param вида ref_<код> и находит пригласившего. */
+/**
+ * Кто привёл нового игрока.
+ *
+ * Две ссылки ведут в игру, и обе считаются приглашением:
+ *   ref_<код>    — обычная реферальная ссылка из меню;
+ *   match_<id>   — ссылка на конкретный бой, отправленная другу.
+ *
+ * Вторую раньше не считали, и это было несправедливо: человек привёл друга
+ * самым живым способом, какой есть, — позвал на бой, — и не получал за это
+ * ничего. Приглашение на бой приводит людей лучше любой реферальной ссылки.
+ */
 async function resolveReferrer(
   client: PoolClient,
   startParam?: string,
 ): Promise<{ id: number } | null> {
-  if (!startParam?.startsWith('ref_')) return null
-  const code = startParam.slice(4)
-  if (!code) return null
+  if (!startParam) return null
 
-  const { rows } = await client.query<{ id: number }>(
-    'SELECT id FROM users WHERE referral_code = $1 OR telegram_id::text = $1',
-    [code],
-  )
-  return rows[0] ?? null
+  if (startParam.startsWith('ref_')) {
+    const code = startParam.slice(4)
+    if (!code) return null
+
+    const { rows } = await client.query<{ id: number }>(
+      'SELECT id FROM users WHERE referral_code = $1 OR telegram_id::text = $1',
+      [code],
+    )
+    return rows[0] ?? null
+  }
+
+  if (startParam.startsWith('match_')) {
+    const matchId = Number(startParam.slice(6))
+    if (!Number.isSafeInteger(matchId) || matchId <= 0) return null
+
+    const { rows } = await client.query<{ id: number }>(
+      'SELECT player1_id AS id FROM matches WHERE id = $1',
+      [matchId],
+    )
+    return rows[0] ?? null
+  }
+
+  return null
 }
 
 export interface ProfilePatch {

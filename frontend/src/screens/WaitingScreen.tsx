@@ -12,6 +12,7 @@ export function WaitingScreen({
   rounds,
   condition,
   onShare,
+  onLeaveWaiting,
   inviteStartParam,
 }: {
   onCancel: () => void
@@ -21,6 +22,8 @@ export function WaitingScreen({
   condition?: string
   /** Отправка через родное окно Telegram. Если не передана — обычная ссылка. */
   onShare?: () => void
+  /** Уйти с экрана, не отменяя приглашение: оно живёт сутки. */
+  onLeaveWaiting?: () => void
   /**
    * Матч с другом ждёт не случайного соперника, а конкретного человека
    * по ссылке. Тогда вместо «ищем соперника» показываем саму ссылку.
@@ -100,6 +103,16 @@ export function WaitingScreen({
             >
               {t('waiting.invite.share')}
             </button>
+            {/*
+              Караулить экран не нужно: приглашение живёт сутки, и когда друг
+              зайдёт, придёт окно «играем?». Раньше выход отсюда засчитывался
+              брошенным матчем — за это и держали человека на экране.
+            */}
+            {onLeaveWaiting && (
+              <p className="text-tg-subtext text-xs text-center leading-relaxed px-2">
+                {t('waiting.canLeave')}
+              </p>
+            )}
             <button
               onClick={() => {
                 void navigator.clipboard
@@ -111,6 +124,14 @@ export function WaitingScreen({
             >
               {copied ? t('waiting.invite.copied') : t('waiting.invite.copy')}
             </button>
+            {onLeaveWaiting && (
+              <button
+                onClick={onLeaveWaiting}
+                className="tappable w-full py-3 rounded-2xl font-semibold text-tg-blue-light"
+              >
+                {t('waiting.leaveButton')}
+              </button>
+            )}
           </div>
         )}
         {/*

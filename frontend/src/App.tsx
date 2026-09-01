@@ -11,6 +11,7 @@ import { ResultScreen } from './screens/ResultScreen'
 import { SummaryScreen } from './screens/SummaryScreen'
 import { InsufficientBalanceSheet } from './sheets/MiscSheets'
 import { IncomingChallengeSheet, OutgoingChallengeBanner } from './sheets/ChallengeSheets'
+import { InviteReadySheet, InviteWaitingBanner } from './sheets/InviteReadySheet'
 import { DevBar } from './components/DevBar'
 import { SHOW_DEV_BAR } from './config/env'
 import { ECONOMY, eloUpdate, roundsToWin } from './config/economy'
@@ -20,7 +21,13 @@ import { useAppState } from './state/AppState'
 import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
-import { initTelegram, getStartParam, shareLink, sharePreparedMessage } from './telegram/sdk'
+import {
+  initTelegram,
+  getStartParam,
+  shareLink,
+  sharePreparedMessage,
+  telegramDiagnostics,
+} from './telegram/sdk'
 import { buildInviteMessage, buildInviteUrl } from './lib/invite'
 import type { MatchView } from './api/client'
 import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
@@ -176,27 +183,36 @@ export default function App() {
    */
   const openShare = useCallback(
     async (matchId: number, config: MatchConfig) => {
-      const fallback = (): void => {
-        const opened = shareLink(
-          buildInviteUrl(`match_${matchId}`),
-          buildInviteMessage(t, {
-            bet: config.bet,
-            rounds: config.roundsTotal,
-            condition: config.condition,
-          }),
-        )
-        // Молча ничего не открыть — худший исход: человек думает,
-        // что отправил, а друг ничего не получил.
-        if (!opened) setLiveError(t('invite.shareFailed'))
-      }
-
+      /*
+       * Главный путь — родное окно Telegram «кому отправить».
+       *
+       * Если оно не открылось, человек должен увидеть причину, а не гадать:
+       * в сообщении и ответ сервера, и версия Telegram. С этим можно прийти
+       * и починить, а «ничего не произошло» разбору не поддаётся.
+       */
+      let reason = ''
       try {
         const prepared = await api.prepareShare(matchId)
-        if (prepared.preparedMessageId && sharePreparedMessage(prepared.preparedMessageId)) return
+        if (prepared.preparedMessageId) {
+          if (sharePreparedMessage(prepared.preparedMessageId)) return
+          reason = 'Telegram не открыл окно выбора чата'
+        } else {
+          reason = prepared.reason ?? 'Telegram не подготовил сообщение'
+        }
       } catch {
-        /* сервер не смог подготовить — уходим на запасной путь */
+        reason = 'сервер не ответил'
       }
-      fallback()
+
+      // Запасной путь: ссылка с готовым текстом через обычное «поделиться».
+      shareLink(
+        buildInviteUrl(`match_${matchId}`),
+        buildInviteMessage(t, {
+          bet: config.bet,
+          rounds: config.roundsTotal,
+          condition: config.condition,
+        }),
+      )
+      setLiveError(`${t('invite.shareFailed')} · ${reason} · ${telegramDiagnostics()}`)
     },
     [t],
   )
@@ -231,7 +247,10 @@ export default function App() {
 
     void live
       .join(matchId)
-      .then(() => go('battle'))
+      .then((match) => {
+        // Хозяина нет на связи — бой не начался, ждём встречи на главной.
+        go(match ? 'battle' : 'home')
+      })
       .catch(() => setLiveError('Приглашение уже недействительно'))
   }, [liveOn, live, go])
 
@@ -517,6 +536,14 @@ export default function App() {
                 ? () => void openShare(Number(inviteLink.replace('match_', '')), activeConfig)
                 : undefined
             }
+            onLeaveWaiting={
+              inviteLink
+                ? () => {
+                    live.inviteRelease(Number(inviteLink.replace('match_', '')))
+                    go('home')
+                  }
+                : undefined
+            }
             inviteStartParam={inviteLink}
           />
         )}
@@ -592,6 +619,27 @@ export default function App() {
         <OutgoingChallengeBanner
           challenge={live.outgoing}
           onCancel={() => live.cancelChallenge(live.outgoing!.matchId)}
+        />
+      )}
+
+      {/*
+        Приглашение другу. Окно всплывает, когда человек вернулся
+        в приложение и его уже ждут: сидеть на экране ожидания не нужно.
+      */}
+      {liveOn && live.invite && screen !== 'battle' && (
+        <InviteReadySheet
+          invite={live.invite}
+          iAmHost={live.invite.host.id === live.myId}
+          onPlay={() => live.inviteReady(live.invite!.matchId)}
+          onLater={() => live.inviteLater(live.invite!.matchId)}
+        />
+      )}
+
+      {liveOn && live.waitingForInvite && screen !== 'battle' && screen !== 'waiting' && (
+        <InviteWaitingBanner
+          invite={live.waitingForInvite}
+          iAmHost={live.waitingForInvite.host.id === live.myId}
+          onCancel={() => live.inviteRelease(live.waitingForInvite!.matchId)}
         />
       )}
 

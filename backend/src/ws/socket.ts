@@ -15,6 +15,15 @@ import {
 } from '../domain/match.js'
 import { cancelOpen, enqueue, setLivenessCheck } from '../domain/matchmaking.js'
 import {
+  clearReady,
+  invitesNeedingAttention,
+  markReady,
+  releaseAll,
+  snooze,
+  startIfBothReady,
+  expireStaleInvites,
+} from '../domain/invites.js'
+import {
   acceptChallenge,
   cancelChallenge,
   declineChallenge,
@@ -26,6 +35,7 @@ import {
 import { isBotId, startBotRuntime } from './botRuntime.js'
 import { recordEvent } from '../domain/events.js'
 import {
+  announceInvite,
   announceMatchStart,
   announceMatchFinished,
   announceOpponentMoved,
@@ -68,6 +78,11 @@ const clientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('challenge_decline'), matchId: z.number().int() }),
   z.object({ type: z.literal('challenge_cancel'), matchId: z.number().int() }),
   z.object({ type: z.literal('challenges') }),
+  // Приглашение другу: «я готов», «сейчас неудобно», «ухожу с ожидания»
+  z.object({ type: z.literal('invite_ready'), matchId: z.number().int() }),
+  z.object({ type: z.literal('invite_later'), matchId: z.number().int() }),
+  z.object({ type: z.literal('invite_release'), matchId: z.number().int() }),
+  z.object({ type: z.literal('invites') }),
 ])
 
 export async function socketRoutes(app: FastifyInstance): Promise<void> {
@@ -101,6 +116,12 @@ export async function socketRoutes(app: FastifyInstance): Promise<void> {
     socket.send(JSON.stringify({ type: 'hello', userId }))
 
     /*
+     * Человек вернулся в приложение. Если его ждёт приглашение — покажем
+     * прямо сейчас: ради этого он и не сидел на экране ожидания.
+     */
+    void sendPendingInvites(userId)
+
+    /*
      * Сообщения одного игрока обрабатываются строго по очереди.
      *
      * Иначе шесть вызовов, отправленных разом, проверяли бы «сколько вызовов
@@ -126,6 +147,8 @@ export async function socketRoutes(app: FastifyInstance): Promise<void> {
       void cancelOpen(userId)
       // То же и с вызовами: принять приглашение от того, кто вышел, значит
       // остаться в бою одному.
+      // Ушёл — значит больше не ждёт. Приглашение при этом остаётся жить.
+      void releaseAll(userId)
       void dropOutgoingOf(userId).then((gone) => {
         for (const item of gone) {
           sendToUser(item.to, { type: 'challenge_cancelled', matchId: item.matchId })
@@ -154,12 +177,35 @@ function startChallengeSweeper(app: FastifyInstance): void {
           sendToUser(gone.from, { type: 'challenge_expired', matchId: gone.matchId })
           sendToUser(gone.to, { type: 'challenge_expired', matchId: gone.matchId })
         }
+        // Заодно закрываем приглашения, которые провисели сутки.
+        await expireStaleInvites()
       } catch (error) {
         app.log.error({ err: error }, 'не удалось погасить просроченные вызовы')
       }
     })()
   }, SWEEP_MS)
   timer.unref?.()
+}
+
+/**
+ * Показывает приглашения, которые ждут именно этого человека.
+ *
+ * Хозяину — «друг принял вызов, играем?», гостю — «хозяин вернулся».
+ * Если оба уже готовы и оба на связи, бой начинается сам.
+ */
+async function sendPendingInvites(userId: number): Promise<void> {
+  try {
+    for (const invite of await invitesNeedingAttention(userId)) {
+      const started = await startIfBothReady(invite.matchId)
+      if (started) {
+        await announceMatchStart(started.match, started.round)
+        continue
+      }
+      announceInvite([userId], invite)
+    }
+  } catch (error) {
+    console.error('не удалось показать приглашения', error)
+  }
 }
 
 async function handleMessage(app: FastifyInstance, userId: number, raw: string): Promise<void> {
@@ -298,6 +344,51 @@ async function handleMessage(app: FastifyInstance, userId: number, raw: string):
 
       case 'challenges': {
         sendToUser(userId, { type: 'challenges', ...(await listChallenges(userId)) })
+        return
+      }
+
+      // ─── Приглашение другу ─────────────────────────────────────────────────
+
+      case 'invites': {
+        await sendPendingInvites(userId)
+        return
+      }
+
+      case 'invite_ready': {
+        const ready = await markReady(parsed.matchId, userId)
+        if (!ready) {
+          sendToUser(userId, { type: 'error', code: 'invite_not_found' })
+          return
+        }
+
+        if (ready.bothReady) {
+          const started = await startIfBothReady(parsed.matchId)
+          if (started) {
+            await announceMatchStart(started.match, started.round)
+            return
+          }
+        }
+
+        /*
+         * Второго нет на связи. Никто никого не караулит: обоим сообщаем
+         * положение дел, и человек спокойно уходит — позовут, когда сойдутся.
+         */
+        const invite = ready.invite
+        const others = [invite.host.id, invite.guest?.id].filter(
+          (id): id is number => typeof id === 'number' && id !== userId,
+        )
+        announceInvite([userId, ...others], invite)
+        return
+      }
+
+      case 'invite_later': {
+        const invite = await snooze(parsed.matchId, userId)
+        if (invite) announceInvite([userId], invite)
+        return
+      }
+
+      case 'invite_release': {
+        await clearReady(parsed.matchId, userId)
         return
       }
     }

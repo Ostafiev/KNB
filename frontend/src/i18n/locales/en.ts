@@ -161,7 +161,17 @@ export const en: Record<TranslationKey, string> = {
   'invite.message.terms': 'Stake: {stake} · rounds: {rounds}',
   'invite.sendToFriend': 'Send to a friend on Telegram',
   'invite.justLink': 'Just create a link',
-  'invite.shareFailed': 'Telegram did not open. Copy the link below and send it yourself.',
+  'invite.shareFailed': 'The chat picker did not open. Send the link below by hand.',
+  'invite.ready.guest': 'accepted your challenge and is waiting',
+  'invite.ready.host': 'is back and ready to play',
+  'invite.ready.play': 'Play now',
+  'invite.ready.later': 'Later',
+  'invite.ready.hint': '"Later" is not a refusal. The invite stays; we will remind you in an hour.',
+  'invite.waiting.title': 'Waiting for {name}',
+  'invite.waiting.anyone': 'Waiting for a friend',
+  'invite.waiting.hint': 'You can close this — we will call you when they arrive',
+  'waiting.canLeave': 'You can close the app: the match will keep, the invite lives for a day.',
+  'waiting.leaveButton': 'Leave it waiting',
   'invite.sendLink': 'Send a link',
 
   // ─── Referrals ────────────────────────────────────────────────────────────

@@ -159,7 +159,17 @@ export const ru = {
   'invite.message.terms': 'Ставка: {stake} · раундов: {rounds}',
   'invite.sendToFriend': 'Отправить другу в Telegram',
   'invite.justLink': 'Просто создать ссылку',
-  'invite.shareFailed': 'Telegram не открылся. Ссылка на экране ниже — скопируй и отправь вручную.',
+  'invite.shareFailed': 'Окно выбора чата не открылось. Ссылка ниже — отправь вручную.',
+  'invite.ready.guest': 'принял твой вызов и ждёт боя',
+  'invite.ready.host': 'вернулся и готов играть',
+  'invite.ready.play': 'Играть сейчас',
+  'invite.ready.later': 'Позже',
+  'invite.ready.hint': '«Позже» — не отказ. Приглашение останется, напомним через час.',
+  'invite.waiting.title': 'Ждём: {name}',
+  'invite.waiting.anyone': 'Ждём друга',
+  'invite.waiting.hint': 'Можно закрыть — позовём, когда он зайдёт',
+  'waiting.canLeave': 'Можно закрыть приложение: бой не потеряется, приглашение живёт сутки.',
+  'waiting.leaveButton': 'Свернуть ожидание',
   'invite.sendLink': 'Отправить ссылку',
 
   // ─── Рефералы ─────────────────────────────────────────────────────────────

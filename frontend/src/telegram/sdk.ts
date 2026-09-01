@@ -99,6 +99,16 @@ export function hapticSelection(): void {
  * Работает с Telegram 8.0 и новее; в старых версиях метода просто нет,
  * и тогда остаётся прежний путь через ссылку.
  */
+/** Что приложение может рассказать о себе — для разбора жалоб. */
+export function telegramDiagnostics(): string {
+  const wa = getWebApp()
+  if (!wa) return 'вне Telegram'
+  const parts = [`Telegram ${wa.version ?? '?'}`]
+  parts.push(wa.shareMessage ? 'выбор чата: есть' : 'выбор чата: нет')
+  parts.push(wa.openTelegramLink ? 'ссылки: есть' : 'ссылки: нет')
+  return parts.join(' · ')
+}
+
 export function sharePreparedMessage(
   preparedMessageId: string,
   onResult?: (sent: boolean) => void,

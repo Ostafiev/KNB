@@ -14,10 +14,11 @@ import { buildMatchView } from '../domain/matchView.js'
 import { getReferralSummary } from '../domain/referrals.js'
 import { listFriends } from '../domain/friends.js'
 import { buildInviteMessage } from '../domain/inviteMessage.js'
+import { getInvite, markReady, startIfBothReady, INVITE_TTL_MS } from '../domain/invites.js'
 import { savePreparedInlineMessage, TelegramApiError } from '../lib/telegramApi.js'
 import { listOpenMatches } from '../domain/matchmaking.js'
 import { recordEvent } from '../domain/events.js'
-import { announceMatchStart } from '../ws/hub.js'
+import { announceInvite, announceMatchStart } from '../ws/hub.js'
 
 /**
  * Обычные запросы вокруг матча: создать приглашение другу, войти по ссылке,
@@ -73,7 +74,13 @@ export async function matchRoutes(app: FastifyInstance): Promise<void> {
         rounds: parsed.data.rounds,
         condition: parsed.data.condition ?? null,
         rematchOf: parsed.data.rematchOf ?? null,
+        // Приглашение по ссылке живёт сутки: друг может открыть его,
+        // когда освободится, а не «прямо сейчас или никогда».
+        expiresInMs: parsed.data.mode === 'friend' ? INVITE_TTL_MS : null,
       })
+
+      // Хозяин на экране ожидания — значит готов играть прямо сейчас.
+      if (match.mode === 'friend') await markReady(match.id, request.currentUser!.id)
 
       await recordEvent(request.currentUser!.id, 'match_created', {
         matchId: match.id,
@@ -126,12 +133,63 @@ export async function matchRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const started = await startMatch(matchId, request.currentUser!.id)
+        const me = request.currentUser!.id
+
+        /*
+         * Приглашение другу — встреча, а не очередь.
+         *
+         * Гость мог открыть ссылку через час, когда хозяин уже занят другим.
+         * Тогда бой не начинаем: отмечаем гостя готовым и говорим ему, что
+         * позовём, как только хозяин вернётся. Ждать на экране не нужно никому.
+         */
+        const invite = await getInvite(matchId)
+        if (invite && invite.host.id !== me) {
+          /*
+           * Личный вызов адресован конкретному человеку. Ссылку могли
+           * переслать дальше, но войти по ней вправе только адресат —
+           * иначе бой достанется тому, кто оказался быстрее.
+           */
+          if (invite.invitedId !== null && invite.invitedId !== me) {
+            throw new MatchError('not_invited', 'этот вызов адресован другому игроку')
+          }
+          // Просроченное приглашение — закрытая дверь, а не очередь.
+          if (invite.expiresAt !== null && invite.expiresAt <= Date.now()) {
+            throw new MatchError('challenge_expired', 'приглашение истекло')
+          }
+          // Второй игрок уже есть — свободных мест нет.
+          if (invite.guest !== null && invite.guest.id !== me) {
+            throw new MatchError('match_full', 'в матче уже есть второй игрок')
+          }
+
+          await query(
+            `UPDATE matches SET player2_id = $2 WHERE id = $1 AND player2_id IS NULL`,
+            [matchId, me],
+          )
+          const ready = await markReady(matchId, me)
+
+          if (ready?.bothReady) {
+            const started = await startIfBothReady(matchId)
+            if (started) {
+              await announceMatchStart(started.match, started.round)
+              await recordEvent(me, 'match_joined', { matchId })
+              return reply.send({ match: await buildMatchView(started.match, me) })
+            }
+          }
+
+          await recordEvent(me, 'invite_accepted', { matchId })
+
+          // Хозяину — окно «друг принял вызов», если он сейчас в приложении.
+          const updated = await getInvite(matchId)
+          if (updated) announceInvite([updated.host.id], updated)
+          return reply.send({ waiting: true, invite: updated })
+        }
+
+        const started = await startMatch(matchId, me)
         await announceMatchStart(started.match, started.round)
-        await recordEvent(request.currentUser!.id, 'match_joined', { matchId })
+        await recordEvent(me, 'match_joined', { matchId })
 
         return reply.send({
-          match: await buildMatchView(started.match, request.currentUser!.id),
+          match: await buildMatchView(started.match, me),
         })
       } catch (error) {
         if (error instanceof MatchError) {

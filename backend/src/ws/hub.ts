@@ -220,6 +220,18 @@ export async function announceMatchFinished(matchId: number): Promise<void> {
   if (match) await broadcastMatch(match, 'match_finished')
 }
 
+/**
+ * Приглашение сдвинулось: кто-то отметился готовым.
+ *
+ * Обеим сторонам шлём одно и то же событие — приложение само решит, что
+ * показать: окно «друг принял, играем?» хозяину или «ждём хозяина» гостю.
+ */
+export function announceInvite(userIds: number[], invite: unknown): void {
+  for (const userId of userIds) {
+    sendToUser(userId, { type: 'invite_update', invite })
+  }
+}
+
 /** Текущее состояние матча одному игроку — после переподключения. */
 export async function sendMatchState(matchId: number, userId: number): Promise<MatchView | null> {
   const match = await getMatch(matchId)

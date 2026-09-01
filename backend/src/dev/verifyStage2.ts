@@ -13,6 +13,7 @@ import { buildServer } from '../server.js'
 import { buildInitData } from '../telegram/initData.js'
 import { closePool, query, queryOne } from '../db/client.js'
 import { closeRedis } from '../lib/redis.js'
+import { getEconomyConfig } from '../domain/appConfig.js'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 assert(BOT_TOKEN, 'для проверки нужен TELEGRAM_BOT_TOKEN (подойдёт любой тестовый)')
@@ -34,6 +35,17 @@ async function check(name: string, fn: () => Promise<void> | void): Promise<void
 
 async function main(): Promise<void> {
   const app = await buildServer()
+
+  /*
+   * Суммы берём из настроек, а не вписываем в проверку.
+   *
+   * Стартовый бонус меняется в админке — так и задумано. Проверка должна
+   * ловить сломанную выдачу бонуса, а не отставание от решения владельца.
+   */
+  const economy = await getEconomyConfig(true)
+  const SIGNUP = economy.signupBonus
+  const REF_START = economy.referralInviteeBonus
+
   // Уникальные идентификаторы, чтобы прогон не спотыкался о прошлые запуски
   const stamp = Date.now() % 1_000_000
   const aliceId = 900_000_000 + stamp
@@ -44,7 +56,7 @@ async function main(): Promise<void> {
   let aliceToken = ''
   let aliceCode = ''
 
-  await check('новый игрок регистрируется и получает 100 медяков', async () => {
+  await check(`новый игрок регистрируется и получает ${SIGNUP} медяков`, async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/telegram',
@@ -60,7 +72,7 @@ async function main(): Promise<void> {
     assert.equal(res.statusCode, 200, `код ответа ${res.statusCode}: ${res.body}`)
     const body = res.json()
     assert.equal(body.user.isNew, true, 'игрок должен быть новым')
-    assert.equal(body.user.balance, 100, `баланс ${body.user.balance}, ожидали 100`)
+    assert.equal(body.user.balance, SIGNUP, `баланс ${body.user.balance}, ожидали ${SIGNUP}`)
     assert.equal(body.user.nickname, 'Алиса')
     assert.equal(body.user.language, 'ru', 'язык подтянулся из Telegram')
     assert.ok(body.token, 'должен вернуться токен')
@@ -78,7 +90,7 @@ async function main(): Promise<void> {
     })
     const body = res.json()
     assert.equal(body.user.isNew, false)
-    assert.equal(body.user.balance, 100, 'бонус начислен повторно')
+    assert.equal(body.user.balance, SIGNUP, 'бонус начислен повторно')
   })
 
   await check('подделанная подпись отклоняется', async () => {
@@ -116,7 +128,7 @@ async function main(): Promise<void> {
 
   console.log('\nРефералы')
 
-  await check('пришедший по ссылке получает 100 + 50 стартовых', async () => {
+  await check(`пришедший по ссылке получает ${SIGNUP} + ${REF_START} стартовых`, async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/telegram',
@@ -130,7 +142,11 @@ async function main(): Promise<void> {
     })
     assert.equal(res.statusCode, 200)
     const body = res.json()
-    assert.equal(body.user.balance, 150, `баланс ${body.user.balance}, ожидали 150`)
+    assert.equal(
+      body.user.balance,
+      SIGNUP + REF_START,
+      `баланс ${body.user.balance}, ожидали ${SIGNUP + REF_START}`,
+    )
     assert.equal(body.user.language, 'en', 'английская локаль подтянулась')
   })
 
@@ -218,15 +234,15 @@ async function main(): Promise<void> {
     const res = await app.inject({ method: 'POST', url: '/api/me/daily-bonus', headers: auth })
     const body = res.json()
     assert.equal(body.granted, true)
-    assert.equal(body.amount, 20)
-    assert.equal(body.balance, 120)
+    assert.equal(body.amount, economy.dailyBonus)
+    assert.equal(body.balance, SIGNUP + economy.dailyBonus)
   })
 
   await check('второй бонус в тот же день не начисляется', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/me/daily-bonus', headers: auth })
     const body = res.json()
     assert.equal(body.granted, false)
-    assert.equal(body.balance, 120, 'баланс не должен вырасти')
+    assert.equal(body.balance, SIGNUP + economy.dailyBonus, 'баланс не должен вырасти')
   })
 
   console.log('\nЖурнал и сверка')
@@ -261,7 +277,7 @@ async function main(): Promise<void> {
     const economy = res.json().economy
     assert.equal(economy.minBet, 25)
     assert.equal(economy.maxBet, 500)
-    assert.equal(economy.signupBonus, 100)
+    assert.equal(economy.signupBonus, SIGNUP)
     assert.equal(economy.dailyBonus, 20)
     assert.equal(economy.eloStart, 1000)
   })

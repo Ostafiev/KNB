@@ -255,7 +255,12 @@ export async function startMatch(matchId: number, player2Id: number): Promise<St
     if (match.status !== 'pending' && match.status !== 'searching') {
       throw new MatchError('match_not_joinable', 'к этому матчу уже нельзя присоединиться')
     }
-    if (match.player2_id !== null) {
+    /*
+     * Второй игрок уже записан — это нормально для приглашения другу:
+     * он принял вызов раньше и вернулся, когда хозяин освободился.
+     * Чужому места по-прежнему нет.
+     */
+    if (match.player2_id !== null && match.player2_id !== player2Id) {
       throw new MatchError('match_full', 'в матче уже есть второй игрок')
     }
     if (match.player1_id === player2Id) {

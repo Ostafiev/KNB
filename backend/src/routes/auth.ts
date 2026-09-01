@@ -72,7 +72,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   if (!config.isProduction) {
     app.post('/api/auth/dev', async (request, reply) => {
       const body = z
-        .object({ telegramId: z.number().int().positive().default(999_000_001), name: z.string().optional() })
+        .object({
+          telegramId: z.number().int().positive().default(999_000_001),
+          name: z.string().optional(),
+          // То же, что Telegram передаёт по ссылке-приглашению: ref_… или match_…
+          // Без него в браузере нельзя проверить приглашения и рефералов.
+          startParam: z.string().max(64).optional(),
+        })
         .parse(request.body ?? {})
 
       const { user, isNew } = await findOrCreate(
@@ -82,7 +88,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           username: `dev_${body.telegramId}`,
           language_code: 'ru',
         },
-        { ip: request.ip },
+        { ip: request.ip, startParam: body.startParam },
       )
 
       return reply.send({ token: issueToken(user.id), user: toPublicUser(user, isNew), dev: true })

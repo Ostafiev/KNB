@@ -209,6 +209,19 @@ export interface FriendView {
   bonusPaid: boolean
 }
 
+/** Приглашение другу: живёт сутки, ждать его на экране не нужно. */
+export interface InviteView {
+  matchId: number
+  bet: number
+  rounds: number
+  condition: string | null
+  host: { id: number; nickname: string; avatarId: string; rating: number }
+  guest: { id: number; nickname: string; avatarId: string; rating: number } | null
+  hostReady: boolean
+  guestReady: boolean
+  expiresAt: number | null
+}
+
 /** Вызов на бой, ждущий ответа. */
 export interface ChallengeView {
   matchId: number
@@ -330,7 +343,13 @@ export const api = {
     return request(`/matches/${matchId}/share`, { method: 'POST' })
   },
 
-  joinMatch(matchId: number): Promise<{ match: MatchView }> {
+  /**
+   * Вход по ссылке-приглашению или в открытый бой.
+   *
+   * Если хозяина сейчас нет, бой не начнётся: сервер вернёт waiting,
+   * и приложение скажет, что позовёт, когда тот вернётся.
+   */
+  joinMatch(matchId: number): Promise<{ match?: MatchView; waiting?: boolean; invite?: InviteView }> {
     return request(`/matches/${matchId}/join`, { method: 'POST' })
   },
 

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { api, getToken, type ChallengeView, type MatchView } from '../api/client'
+import { api, getToken, type ChallengeView, type InviteView, type MatchView } from '../api/client'
 import { matchSocket, type SocketEvent } from '../api/socket'
 import { useAppState } from './AppState'
 import type { HandChoice } from '../types'
@@ -66,7 +66,17 @@ interface LiveMatchValue {
     rounds: number
     condition?: string
   }) => Promise<{ match: MatchView; startParam: string }>
-  join: (matchId: number) => Promise<MatchView>
+  /** Вход по ссылке. Вернёт null, если хозяина нет и бой ещё не начался. */
+  join: (matchId: number) => Promise<MatchView | null>
+  /** Мой идентификатор на сервере — чтобы понять, кто в приглашении кто. */
+  myId: number | null
+  /** Приглашение, которое ждёт ответа именно сейчас. */
+  invite: InviteView | null
+  /** Я принял приглашение, но второго нет — ждём встречи. */
+  waitingForInvite: InviteView | null
+  inviteReady: (matchId: number) => void
+  inviteLater: (matchId: number) => void
+  inviteRelease: (matchId: number) => void
   move: (choice: HandChoice) => void
   leave: () => void
   reset: () => void
@@ -90,9 +100,13 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
   const [challengeOutcome, setChallengeOutcome] = useState<
     { outcome: ChallengeOutcome; seq: number } | null
   >(null)
+  const [myId, setMyId] = useState<number | null>(null)
+  const [invite, setInvite] = useState<InviteView | null>(null)
+  const [waitingForInvite, setWaitingForInvite] = useState<InviteView | null>(null)
 
   const seq = useRef(0)
   const bump = useRef(0)
+  const myIdRef = useRef<number | null>(null)
   const matchIdRef = useRef<number | null>(null)
   // Фаза нужна внутри обработчика событий, который создаётся один раз.
   const phaseRef = useRef<LivePhase>('idle')
@@ -121,6 +135,13 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = matchSocket.subscribe((event: SocketEvent) => {
       switch (event.type) {
+        case 'hello': {
+          const id = (event.userId as number) ?? null
+          myIdRef.current = id
+          setMyId(id)
+          return
+        }
+
         case 'socket_open': {
           setConnected(true)
           // После обрыва спрашиваем, что стало с матчем, пока нас не было.
@@ -129,6 +150,7 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
           }
           // И какие вызовы ещё ждут ответа: окно должно вернуться на место.
           matchSocket.send({ type: 'challenges' })
+          matchSocket.send({ type: 'invites' })
           return
         }
 
@@ -145,9 +167,11 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
           return
 
         case 'match_found': {
-          // Бой начался — окна вызовов больше не нужны.
+          // Бой начался — окна вызовов и приглашений больше не нужны.
           setIncoming([])
           setOutgoing(null)
+          setInvite(null)
+          setWaitingForInvite(null)
           adoptMatch(event.match as MatchView)
           setRoundEndsAt((event.roundEndsAt as number) ?? null)
           setPhase('active')
@@ -201,6 +225,27 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
         case 'challenges': {
           setIncoming((event.incoming as ChallengeView[]) ?? [])
           setOutgoing(((event.outgoing as ChallengeView[]) ?? [])[0] ?? null)
+          return
+        }
+
+        case 'invite_update': {
+          const view = event.invite as InviteView
+          const meIsHost = view.host.id === myIdRef.current
+
+          /*
+           * Хозяину показываем окно «друг принял вызов» — но только когда
+           * друг действительно ждёт. Гостю — что хозяин вернулся.
+           */
+          if (meIsHost ? view.guestReady && !view.hostReady : view.hostReady && !view.guestReady) {
+            setInvite(view)
+          } else {
+            setInvite(null)
+          }
+
+          // Я отметился готовым, а второго нет — значит жду встречи.
+          const myReady = meIsHost ? view.hostReady : view.guestReady
+          const otherReady = meIsHost ? view.guestReady : view.hostReady
+          setWaitingForInvite(myReady && !otherReady ? view : null)
           return
         }
 
@@ -306,12 +351,37 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
     return result
   }, [])
 
-  const join = useCallback<LiveMatchValue['join']>(async (matchId) => {
-    const { match: view } = await api.joinMatch(matchId)
-    adoptMatch(view)
-    setPhase('active')
-    return view
-  }, [adoptMatch])
+  const join = useCallback<LiveMatchValue['join']>(
+    async (matchId) => {
+      const result = await api.joinMatch(matchId)
+
+      // Хозяина нет на связи: бой не начался, зовём его и ждём встречи.
+      if (result.waiting || !result.match) {
+        setWaitingForInvite(result.invite ?? null)
+        return null
+      }
+
+      adoptMatch(result.match)
+      setPhase('active')
+      return result.match
+    },
+    [adoptMatch],
+  )
+
+  const inviteReady = useCallback((matchId: number) => {
+    setInvite(null)
+    matchSocket.send({ type: 'invite_ready', matchId })
+  }, [])
+
+  const inviteLater = useCallback((matchId: number) => {
+    setInvite(null)
+    matchSocket.send({ type: 'invite_later', matchId })
+  }, [])
+
+  const inviteRelease = useCallback((matchId: number) => {
+    setWaitingForInvite(null)
+    matchSocket.send({ type: 'invite_release', matchId })
+  }, [])
 
   const move = useCallback((choice: HandChoice) => {
     if (!matchIdRef.current) return
@@ -354,6 +424,12 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
       acceptChallenge,
       declineChallenge,
       cancelChallenge,
+      myId,
+      invite,
+      waitingForInvite,
+      inviteReady,
+      inviteLater,
+      inviteRelease,
       queue,
       cancelQueue,
       createInvite,
@@ -378,6 +454,12 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
       acceptChallenge,
       declineChallenge,
       cancelChallenge,
+      myId,
+      invite,
+      waitingForInvite,
+      inviteReady,
+      inviteLater,
+      inviteRelease,
       queue,
       cancelQueue,
       createInvite,
