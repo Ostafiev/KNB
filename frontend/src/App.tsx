@@ -16,7 +16,7 @@ import { DevBar } from './components/DevBar'
 import { SHOW_DEV_BAR } from './config/env'
 import { ECONOMY, eloUpdate, roundsToWin } from './config/economy'
 import { randomChoice, resolveRound } from './lib/game'
-import { api } from './api/client'
+import { api, ApiError, ApiUnavailable } from './api/client'
 import { useAppState } from './state/AppState'
 import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
@@ -208,8 +208,20 @@ export default function App() {
           // молча уходим запасным путём, не пугая человека ошибкой.
           reason = outcome === 'ignored' ? '' : `окно не открылось: ${outcome.error}`
         }
-      } catch {
-        reason = 'сервер не ответил'
+      } catch (error) {
+        /*
+         * Ответ сервера — это уже улика, и выбрасывать её нельзя.
+         *
+         * «Сервер не ответил» одинаково звучит и когда он спит, и когда
+         * отказал в доступе, и когда упал. Показываем код и текст: по ним
+         * видно, куда смотреть, а по общей фразе — некуда.
+         */
+        reason =
+          error instanceof ApiError
+            ? `сервер: ${error.status} ${error.code}${error.message ? ` — ${error.message}` : ''}`
+            : error instanceof ApiUnavailable
+              ? 'сервер недоступен (сеть или сон)'
+              : `сбой: ${error instanceof Error ? error.message : 'неизвестно'}`
       }
 
       /*
