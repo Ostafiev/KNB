@@ -19,6 +19,24 @@ export function buildInviteUrl(startParam: string): string {
   return `https://t.me/${getBotUsername()}?startapp=${encodeURIComponent(startParam)}`
 }
 
+/**
+ * Адрес, по которому Telegram сам показывает окно «Выберите чаты».
+ *
+ * Ничего просить у клиента не нужно: это обычная ссылка, а такие ссылки
+ * Telegram перехватывает внутри приложения. Поэтому она работает там, где
+ * не работали команды через Bot API — они уходили в пустоту без ответа.
+ *
+ * Оба куска обязательно кодируем: в тексте вызова живут переводы строк,
+ * решётки и амперсанды, и без кодирования сообщение обрывается на первом же.
+ */
+export function buildShareHref(inviteUrl: string, message: string): string {
+  return (
+    'https://t.me/share/url' +
+    `?url=${encodeURIComponent(inviteUrl)}` +
+    `&text=${encodeURIComponent(message)}`
+  )
+}
+
 export interface InviteTerms {
   bet: number
   rounds: number

@@ -3,15 +3,13 @@ import { useAppChrome } from '../components/AppMenu'
 import { useI18n, useT } from '../i18n'
 import { formatRounds } from '../lib/format'
 import { ECONOMY } from '../config/economy'
-import { buildInviteMessage, buildInviteUrl } from '../lib/invite'
-import { shareLink } from '../telegram/sdk'
+import { buildInviteMessage, buildInviteUrl, buildShareHref } from '../lib/invite'
 
 export function WaitingScreen({
   onCancel,
   bet,
   rounds,
   condition,
-  onShare,
   onLeaveWaiting,
   inviteStartParam,
   highlightShare,
@@ -21,8 +19,6 @@ export function WaitingScreen({
   rounds: number
   /** Условие пари — оно должно попасть и в сообщение другу. */
   condition?: string
-  /** Отправка через родное окно Telegram. Если не передана — обычная ссылка. */
-  onShare?: () => void
   /**
    * Человек шёл именно звать друга.
    *
@@ -56,6 +52,14 @@ export function WaitingScreen({
    * условия — это не то, ради чего человек писал другу.
    */
   const inviteMessage = buildInviteMessage(t, { bet, rounds, condition })
+
+  /**
+   * Адрес, по которому Telegram сам открывает окно «Выберите чаты».
+   *
+   * Текст и ссылка уходят в сообщение готовыми — другу приходит вызов
+   * с условием пари, а не голый адрес.
+   */
+  const shareHref = inviteUrl ? buildShareHref(inviteUrl, inviteMessage) : ''
 
   useEffect(() => {
     const timer = setInterval(() => setDots((d) => (d + 1) % 4), 500)
@@ -105,22 +109,30 @@ export function WaitingScreen({
         {inviteUrl && (
           <div className="w-full flex flex-col gap-2 animate-fade-in">
             {/*
-              Сначала действие, потом ссылка.
-              Человек пришёл сюда звать друга — выбор чата и есть следующий шаг,
-              а ссылка нужна лишь тому, кто захочет отправить её сам.
+              Обычная ссылка, а не команда Telegram.
+              ────────────────────────────────────
+              Долго не работал «правильный» путь: приложение просило клиент
+              показать список чатов, а тот молчал — ни окна, ни отказа. Разбор
+              упирался в то, что ответа нет вовсе.
+
+              Здесь ничего просить не нужно. Это обычная ссылка на t.me,
+              а Telegram сам перехватывает такие ссылки внутри приложения и
+              показывает своё окно «Выберите чаты». Работает во всех клиентах
+              и не зависит ни от версии, ни от связи со страницей: нажатие на
+              ссылку — это нажатие, а не просьба.
             */}
-            <button
-              onClick={() => (onShare ? onShare() : shareLink(inviteUrl, inviteMessage))}
+            <a
+              href={shareHref}
               className={
                 highlightShare
                   ? 'tappable w-full py-4 rounded-2xl font-black text-white text-lg flex items-center justify-center gap-2 glow-blue'
-                  : 'tappable w-full py-3.5 rounded-2xl font-bold text-tg-text glass-strong border border-tg-blue/40'
+                  : 'tappable w-full py-3.5 rounded-2xl font-bold text-tg-text glass-strong border border-tg-blue/40 flex items-center justify-center'
               }
               style={highlightShare ? { background: 'var(--tg-blue)' } : undefined}
             >
               {highlightShare && <span className="text-xl">👥</span>}
               {t('waiting.invite.share')}
-            </button>
+            </a>
             <div className="glass rounded-2xl px-4 py-3 text-tg-subtext text-xs break-all text-center">
               {inviteUrl}
             </div>

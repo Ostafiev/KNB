@@ -16,21 +16,11 @@ import { DevBar } from './components/DevBar'
 import { SHOW_DEV_BAR } from './config/env'
 import { ECONOMY, eloUpdate, roundsToWin } from './config/economy'
 import { randomChoice, resolveRound } from './lib/game'
-import { api, ApiError, ApiUnavailable } from './api/client'
 import { useAppState } from './state/AppState'
 import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
-import {
-  initTelegram,
-  getStartParam,
-  shareLink,
-  chatPickerBroken,
-  sharePreparedMessage,
-  confirmChatPicker,
-  telegramDiagnostics,
-} from './telegram/sdk'
-import { buildInviteMessage, buildInviteUrl } from './lib/invite'
+import { initTelegram, getStartParam } from './telegram/sdk'
 import type { MatchView } from './api/client'
 import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
 
@@ -177,116 +167,15 @@ export default function App() {
     }
   }, [live.signal, liveOn, live.match?.bet, go])
 
-  /**
-   * Отправка приглашения другу.
-   *
-   * Сначала просим Telegram подготовить сообщение и показываем родное окно
-   * выбора чата — то самое, где человек выбирает друга из своих контактов.
-   * Если версия Telegram старая или подготовить не удалось, остаётся прежний
-   * путь: ссылка с готовым текстом через обычное «поделиться».
-   */
   /*
-   * Сообщение готовится заранее, до нажатия.
+   * Приглашение отправляется обычной ссылкой, а не командой Telegram.
    *
-   * Telegram открывает список чатов только в прямой ответ на палец человека.
-   * Любое ожидание между нажатием и просьбой — и он молча откажет: для него
-   * это уже не человек нажал, а страница сама решила. Запрос к серверу за
-   * готовым сообщением занимает доли секунды, но этого достаточно.
-   *
-   * Поэтому запрос уходит заранее, как только матч заведён, а на нажатие
-   * остаётся одно действие без всякого ожидания.
+   * Раньше здесь приложение просило клиент показать список чатов через
+   * Bot API. Клиент молчал: ни окна, ни отказа — и разбирать было нечего.
+   * Теперь кнопка на экране ожидания — простая ссылка на t.me, которую
+   * Telegram перехватывает сам и показывает своё окно «Выберите чаты».
+   * Ничего просить не нужно, и ломаться нечему.
    */
-  const [preparedShare, setPreparedShare] = useState<{
-    matchId: number
-    id: string | null
-    reason: string
-  } | null>(null)
-
-  useEffect(() => {
-    if (!inviteLink) {
-      setPreparedShare(null)
-      return
-    }
-    const matchId = Number(inviteLink.replace('match_', ''))
-    if (!Number.isSafeInteger(matchId)) return
-
-    let cancelled = false
-    void api
-      .prepareShare(matchId)
-      .then((prepared) => {
-        if (cancelled) return
-        setPreparedShare({
-          matchId,
-          id: prepared.preparedMessageId,
-          reason: prepared.preparedMessageId
-            ? ''
-            : (prepared.reason ?? 'Telegram не подготовил сообщение'),
-        })
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        setPreparedShare({
-          matchId,
-          id: null,
-          reason:
-            error instanceof ApiError
-              ? `сервер: ${error.status} ${error.code}${error.message ? ` — ${error.message}` : ''}`
-              : error instanceof ApiUnavailable
-                ? 'сервер недоступен (сеть или сон)'
-                : `сбой: ${error instanceof Error ? error.message : 'неизвестно'}`,
-        })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [inviteLink])
-
-  /**
-   * Нажатие на «выбрать друга». Никаких ожиданий внутри — только действие.
-   */
-  const openShare = useCallback(
-    (matchId: number, config: MatchConfig) => {
-      const ready = preparedShare?.matchId === matchId ? preparedShare : null
-      const message = buildInviteMessage(t, {
-        bet: config.bet,
-        rounds: config.roundsTotal,
-        condition: config.condition,
-      })
-      const url = buildInviteUrl(`match_${matchId}`)
-
-      /*
-       * Пока человек не увидел окно, он должен видеть причину.
-       *
-       * В прошлой правке я сам себе выключил свет: запасной путь возвращал
-       * «получилось», и приложение молчало даже тогда, когда не открылось
-       * ничего. Молчание неотличимо от успеха — и разбирать нечего.
-       */
-      const explain = (reason: string): void => {
-        shareLink(url, message)
-        setLiveError(`${t('invite.shareFailed')} · ${reason} · ${telegramDiagnostics()}`)
-      }
-
-      // Главный путь: родное окно Telegram со списком чатов.
-      if (ready?.id && !chatPickerBroken()) {
-        const started = sharePreparedMessage(ready.id)
-        if (started.ok) {
-          void confirmChatPicker().then((opened) => {
-            if (!opened) explain('Telegram промолчал в ответ на просьбу')
-          })
-          return
-        }
-        explain(`окно не открылось: ${started.error}`)
-        return
-      }
-
-      explain(
-        ready
-          ? ready.reason || 'окно выбора чата этому клиенту не по силам'
-          : 'сообщение ещё готовилось — попробуй ещё раз',
-      )
-    },
-    [preparedShare, t],
-  )
 
   /**
    * Что стало с отправленным вызовом. Друг мог отказаться или не ответить —
@@ -400,7 +289,7 @@ export default function App() {
 
       go('waiting')
     },
-    [balance, go, liveOn, live, demoPlayAllowed, status, t, openShare],
+    [balance, go, liveOn, live, demoPlayAllowed, status, t],
   )
 
   /** Правка 14: «Следующий бой» — новый соперник, условия те же, без подтверждений. */
@@ -610,11 +499,6 @@ export default function App() {
             bet={activeConfig.bet}
             rounds={activeConfig.roundsTotal}
             condition={activeConfig.condition}
-            onShare={
-              inviteLink
-                ? () => void openShare(Number(inviteLink.replace('match_', '')), activeConfig)
-                : undefined
-            }
             highlightShare={inviteIntent}
             onLeaveWaiting={
               inviteLink
