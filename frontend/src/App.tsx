@@ -247,45 +247,43 @@ export default function App() {
   const openShare = useCallback(
     (matchId: number, config: MatchConfig) => {
       const ready = preparedShare?.matchId === matchId ? preparedShare : null
+      const message = buildInviteMessage(t, {
+        bet: config.bet,
+        rounds: config.roundsTotal,
+        condition: config.condition,
+      })
+      const url = buildInviteUrl(`match_${matchId}`)
+
+      /*
+       * Пока человек не увидел окно, он должен видеть причину.
+       *
+       * В прошлой правке я сам себе выключил свет: запасной путь возвращал
+       * «получилось», и приложение молчало даже тогда, когда не открылось
+       * ничего. Молчание неотличимо от успеха — и разбирать нечего.
+       */
+      const explain = (reason: string): void => {
+        shareLink(url, message)
+        setLiveError(`${t('invite.shareFailed')} · ${reason} · ${telegramDiagnostics()}`)
+      }
 
       // Главный путь: родное окно Telegram со списком чатов.
       if (ready?.id && !chatPickerBroken()) {
         const started = sharePreparedMessage(ready.id)
         if (started.ok) {
-          // Клиент мог команду проглотить — тогда через полторы секунды
-          // фокус всё ещё наш, и мы тихо предлагаем обычное «поделиться».
           void confirmChatPicker().then((opened) => {
-            if (opened) return
-            shareLink(
-              buildInviteUrl(`match_${matchId}`),
-              buildInviteMessage(t, {
-                bet: config.bet,
-                rounds: config.roundsTotal,
-                condition: config.condition,
-              }),
-            )
+            if (!opened) explain('Telegram промолчал в ответ на просьбу')
           })
           return
         }
+        explain(`окно не открылось: ${started.error}`)
+        return
       }
 
-      /*
-       * Запасной путь: та же ссылка с тем же текстом через обычное
-       * «поделиться». Окно со списком чатов тоже родное — просто открывает
-       * его Telegram по-другому, и это умеет любой клиент.
-       */
-      const sent = shareLink(
-        buildInviteUrl(`match_${matchId}`),
-        buildInviteMessage(t, {
-          bet: config.bet,
-          rounds: config.roundsTotal,
-          condition: config.condition,
-        }),
+      explain(
+        ready
+          ? ready.reason || 'окно выбора чата этому клиенту не по силам'
+          : 'сообщение ещё готовилось — попробуй ещё раз',
       )
-
-      if (sent) return
-      const reason = ready?.reason || 'запасной путь тоже не открылся'
-      setLiveError(`${t('invite.shareFailed')} · ${reason} · ${telegramDiagnostics()}`)
     },
     [preparedShare, t],
   )
