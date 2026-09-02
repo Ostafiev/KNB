@@ -26,7 +26,8 @@ import {
   getStartParam,
   shareLink,
   chatPickerBroken,
-  openChatPicker,
+  sharePreparedMessage,
+  confirmChatPicker,
   telegramDiagnostics,
 } from './telegram/sdk'
 import { buildInviteMessage, buildInviteUrl } from './lib/invite'
@@ -184,48 +185,92 @@ export default function App() {
    * Если версия Telegram старая или подготовить не удалось, остаётся прежний
    * путь: ссылка с готовым текстом через обычное «поделиться».
    */
+  /*
+   * Сообщение готовится заранее, до нажатия.
+   *
+   * Telegram открывает список чатов только в прямой ответ на палец человека.
+   * Любое ожидание между нажатием и просьбой — и он молча откажет: для него
+   * это уже не человек нажал, а страница сама решила. Запрос к серверу за
+   * готовым сообщением занимает доли секунды, но этого достаточно.
+   *
+   * Поэтому запрос уходит заранее, как только матч заведён, а на нажатие
+   * остаётся одно действие без всякого ожидания.
+   */
+  const [preparedShare, setPreparedShare] = useState<{
+    matchId: number
+    id: string | null
+    reason: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (!inviteLink) {
+      setPreparedShare(null)
+      return
+    }
+    const matchId = Number(inviteLink.replace('match_', ''))
+    if (!Number.isSafeInteger(matchId)) return
+
+    let cancelled = false
+    void api
+      .prepareShare(matchId)
+      .then((prepared) => {
+        if (cancelled) return
+        setPreparedShare({
+          matchId,
+          id: prepared.preparedMessageId,
+          reason: prepared.preparedMessageId
+            ? ''
+            : (prepared.reason ?? 'Telegram не подготовил сообщение'),
+        })
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setPreparedShare({
+          matchId,
+          id: null,
+          reason:
+            error instanceof ApiError
+              ? `сервер: ${error.status} ${error.code}${error.message ? ` — ${error.message}` : ''}`
+              : error instanceof ApiUnavailable
+                ? 'сервер недоступен (сеть или сон)'
+                : `сбой: ${error instanceof Error ? error.message : 'неизвестно'}`,
+        })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [inviteLink])
+
+  /**
+   * Нажатие на «выбрать друга». Никаких ожиданий внутри — только действие.
+   */
   const openShare = useCallback(
-    async (matchId: number, config: MatchConfig) => {
-      /*
-       * Главный путь — родное окно Telegram «кому отправить».
-       *
-       * Если оно не открылось, человек должен увидеть причину, а не гадать:
-       * в сообщении и ответ сервера, и версия Telegram. С этим можно прийти
-       * и починить, а «ничего не произошло» разбору не поддаётся.
-       */
-      let reason = ''
-      try {
-        const prepared = await api.prepareShare(matchId)
-        if (!prepared.preparedMessageId) {
-          reason = prepared.reason ?? 'Telegram не подготовил сообщение'
-        } else if (chatPickerBroken()) {
-          // Уже знаем, что этот клиент такую команду не понимает.
-          reason = ''
-        } else {
-          const outcome = await openChatPicker(prepared.preparedMessageId)
-          if (outcome === 'opened') return
-          // «Проглотил команду» — не поломка, а предел этого клиента:
-          // молча уходим запасным путём, не пугая человека ошибкой.
-          reason = outcome === 'ignored' ? '' : `окно не открылось: ${outcome.error}`
+    (matchId: number, config: MatchConfig) => {
+      const ready = preparedShare?.matchId === matchId ? preparedShare : null
+
+      // Главный путь: родное окно Telegram со списком чатов.
+      if (ready?.id && !chatPickerBroken()) {
+        const started = sharePreparedMessage(ready.id)
+        if (started.ok) {
+          // Клиент мог команду проглотить — тогда через полторы секунды
+          // фокус всё ещё наш, и мы тихо предлагаем обычное «поделиться».
+          void confirmChatPicker().then((opened) => {
+            if (opened) return
+            shareLink(
+              buildInviteUrl(`match_${matchId}`),
+              buildInviteMessage(t, {
+                bet: config.bet,
+                rounds: config.roundsTotal,
+                condition: config.condition,
+              }),
+            )
+          })
+          return
         }
-      } catch (error) {
-        /*
-         * Ответ сервера — это уже улика, и выбрасывать её нельзя.
-         *
-         * «Сервер не ответил» одинаково звучит и когда он спит, и когда
-         * отказал в доступе, и когда упал. Показываем код и текст: по ним
-         * видно, куда смотреть, а по общей фразе — некуда.
-         */
-        reason =
-          error instanceof ApiError
-            ? `сервер: ${error.status} ${error.code}${error.message ? ` — ${error.message}` : ''}`
-            : error instanceof ApiUnavailable
-              ? 'сервер недоступен (сеть или сон)'
-              : `сбой: ${error instanceof Error ? error.message : 'неизвестно'}`
       }
 
       /*
-       * Запасной путь: та же ссылка с тем же текстом, но через обычное
+       * Запасной путь: та же ссылка с тем же текстом через обычное
        * «поделиться». Окно со списком чатов тоже родное — просто открывает
        * его Telegram по-другому, и это умеет любой клиент.
        */
@@ -238,11 +283,11 @@ export default function App() {
         }),
       )
 
-      // Молчим, только если запасной путь сработал и жаловаться не на что.
-      if (sent && !reason) return
-      setLiveError(`${t('invite.shareFailed')} · ${reason || 'запасной путь тоже не открылся'} · ${telegramDiagnostics()}`)
+      if (sent) return
+      const reason = ready?.reason || 'запасной путь тоже не открылся'
+      setLiveError(`${t('invite.shareFailed')} · ${reason} · ${telegramDiagnostics()}`)
     },
-    [t],
+    [preparedShare, t],
   )
 
   /**

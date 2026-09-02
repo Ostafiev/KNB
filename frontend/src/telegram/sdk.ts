@@ -203,36 +203,30 @@ export function chatPickerBroken(): boolean {
 const PICKER_SILENCE_MS = 1500
 
 /**
- * Открыть окно выбора чата — и честно понять, открылось ли оно.
+ * Открылось ли окно на самом деле.
  *
  * Клиент, который команду не понимает, не отвечает отказом: он просто молчит,
  * и приложение остаётся в уверенности, что окно перед человеком. Поэтому
  * ждём полторы секунды и смотрим, у нас ли ещё фокус. Если родное окно
- * действительно вышло — фокус ушло ему, и мы не мешаем. Если фокус всё ещё
- * наш, а ответа нет, значит показывать нечего: команду проглотили.
+ * действительно вышло — фокус ушёл ему, и мы не мешаем. Если фокус всё ещё
+ * наш, значит показывать нечего: команду проглотили.
  *
  * Проверка по фокусу, а не по таймеру: человек может выбирать чат минуту,
  * и вываливать ему поверх открытого окна второе было бы хуже молчания.
+ *
+ * Ждать эту проверку до вызова нельзя — сама просьба должна уйти в тот же
+ * миг, что и нажатие, иначе Telegram сочтёт её самодеятельностью страницы.
  */
-export async function openChatPicker(
-  preparedMessageId: string,
-): Promise<'opened' | 'ignored' | { error: string }> {
-  let answered = false
-  const started = sharePreparedMessage(preparedMessageId, () => {
-    answered = true
-  })
-  if (!started.ok) return { error: started.error }
-
+export async function confirmChatPicker(): Promise<boolean> {
   await new Promise((resolve) => setTimeout(resolve, PICKER_SILENCE_MS))
-  if (answered) return 'opened'
 
   const focused = typeof document !== 'undefined' && document.hasFocus()
   const visible = typeof document === 'undefined' || document.visibilityState === 'visible'
   if (focused && visible) {
     chatPickerUnusable = true
-    return 'ignored'
+    return false
   }
-  return 'opened'
+  return true
 }
 
 /**

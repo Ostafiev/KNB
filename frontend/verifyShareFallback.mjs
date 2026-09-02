@@ -105,16 +105,50 @@ async function probe(mode) {
   await page.addScriptTag({ content: sdkSource })
 
   const result = await page.evaluate(async () => {
-    const first = await window.SDK.openChatPicker('prep_123')
-    // Так же поступает экран: не открылось — уходим запасным путём.
-    if (first !== 'opened') window.SDK.shareLink('https://t.me/bot?startapp=match_1', 'вызов')
+    /*
+     * Повторяем то, что делает экран по нажатию: сообщение уже готово,
+     * поэтому просьба уходит сразу, без единого ожидания. Замеряем, сколько
+     * «тиков» прошло между нажатием и просьбой — их должно быть ноль.
+     */
+    function press(id) {
+      const before = window.__calls.share
+      let awaited = false
+      queueMicrotask(() => { awaited = true })
+      const started = window.SDK.chatPickerBroken()
+        ? { ok: false }
+        : window.SDK.sharePreparedMessage(id)
+      return {
+        started,
+        // true означало бы, что между нажатием и просьбой успел
+        // прокрутиться цикл событий — для Telegram это уже не нажатие.
+        deferred: awaited,
+        called: window.__calls.share > before,
+      }
+    }
 
-    const second = await window.SDK.openChatPicker('prep_456')
-    if (second !== 'opened') window.SDK.shareLink('https://t.me/bot?startapp=match_1', 'вызов')
+    const first = press('prep_123')
+    let firstOpened = false
+    if (first.started.ok) {
+      firstOpened = await window.SDK.confirmChatPicker()
+      if (!firstOpened) window.SDK.shareLink('https://t.me/bot?startapp=match_1', 'вызов')
+    } else {
+      window.SDK.shareLink('https://t.me/bot?startapp=match_1', 'вызов')
+    }
+
+    const second = press('prep_456')
+    let secondOpened = false
+    if (second.started.ok) {
+      secondOpened = await window.SDK.confirmChatPicker()
+      if (!secondOpened) window.SDK.shareLink('https://t.me/bot?startapp=match_1', 'вызов')
+    } else {
+      window.SDK.shareLink('https://t.me/bot?startapp=match_1', 'вызов')
+    }
 
     return {
-      first: typeof first === 'string' ? first : JSON.stringify(first),
-      second: typeof second === 'string' ? second : JSON.stringify(second),
+      firstOpened,
+      secondOpened,
+      firstSync: first.called && !first.deferred,
+      secondCalled: second.called,
       broken: window.SDK.chatPickerBroken(),
       calls: window.__calls,
       diagnostics: window.SDK.telegramDiagnostics(),
@@ -127,9 +161,10 @@ async function probe(mode) {
 
 console.log('\nКлиент, который молча глотает команду (macOS)')
 const silent = await probe('silent')
-check(silent.first === 'ignored', 'молчание замечено — окно не открылось', silent.first)
+check(silent.firstSync, 'просьба ушла в тот же миг, что и нажатие — без ожиданий')
+check(silent.firstOpened === false, 'молчание замечено — окно не открылось')
 check(silent.calls.link === 2, 'оба раза человек получил родное окно запасным путём', silent.calls)
-check(silent.calls.share === 1, 'во второй раз в закрытую дверь не стучимся', silent.calls)
+check(silent.secondCalled === false, 'во второй раз в закрытую дверь не стучимся', silent.calls)
 check(silent.broken === true, 'клиент помечен как неспособный показать окно')
 check(
   silent.diagnostics.includes('macos') && silent.diagnostics.includes('связь: телефон'),
@@ -139,10 +174,11 @@ check(
 
 console.log('\nКлиент, который окно показывает (телефон)')
 const opens = await probe('opens')
-check(opens.first === 'opened', 'окно открылось', opens.first)
+check(opens.firstSync, 'просьба ушла в тот же миг, что и нажатие — без ожиданий')
+check(opens.firstOpened === true, 'окно открылось')
 check(opens.calls.opened === true, 'команда дошла до клиента')
 check(opens.calls.link === 0, 'запасной путь не полез поверх открытого окна', opens.calls)
-check(opens.second === 'opened', 'второе приглашение тоже открылось', opens.second)
+check(opens.secondOpened === true, 'второе приглашение тоже открылось')
 check(opens.calls.share === 2, 'засов снялся ответом клиента', opens.calls)
 check(opens.broken === false, 'рабочий клиент не помечен как сломанный')
 
