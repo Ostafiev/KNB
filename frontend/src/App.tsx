@@ -92,6 +92,8 @@ export default function App() {
   const [ratingDelta, setRatingDelta] = useState(0)
   const [insufficientFor, setInsufficientFor] = useState<number | null>(null)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
+  /** Человек нажал «позвать друга», а не просто создал бой. */
+  const [inviteIntent, setInviteIntent] = useState(false)
   const [liveError, setLiveError] = useState<string | null>(null)
 
   // Матч засчитывается один раз, даже если экран итогов перерисуется.
@@ -292,6 +294,10 @@ export default function App() {
         return
       }
 
+      // Человек шёл звать друга — значит, на экране ожидания главным должно
+      // быть «выбрать друга», а не ссылка и не отмена.
+      setInviteIntent(Boolean(options.share))
+
       settled.current = false
       setMatch(config)
       setRounds([])
@@ -309,18 +315,22 @@ export default function App() {
               rounds: config.roundsTotal,
               condition: config.condition || undefined,
             })
-            .then(({ match: created, startParam }) => {
-              const matchId = created.id
+            .then(({ startParam }) => {
               setInviteLink(startParam)
               /*
-               * Главный способ, которым игра расходится между людьми:
-               * готовое сообщение с условием пари и ссылкой уходит в список
-               * контактов Telegram. Ссылку составляем только теперь — когда
-               * матч действительно заведён и за ней что-то стоит.
+               * Окно выбора чата открывается только по живому нажатию.
+               *
+               * Раньше приложение пыталось открыть его само, как только сервер
+               * заведёт матч. Между нажатием и этим моментом успевал пройти
+               * запрос к серверу — и для Telegram это была уже не реакция на
+               * палец человека, а самодеятельность страницы. Такое он молча
+               * не выполняет: ни окна, ни ответа.
+               *
+               * Хуже того, эта попытка запирала дверь изнутри: внутри Telegram
+               * взводился засов «окно уже показано», и следующее нажатие,
+               * настоящее, падало с ошибкой. Поэтому здесь мы только готовим
+               * ссылку, а окно открывает сам человек кнопкой.
                */
-              if (options.share) {
-                void openShare(matchId, config)
-              }
             })
             .catch((error: unknown) => {
               // Показываем настоящую причину: «не удалось» ничего не объясняет.
@@ -550,6 +560,7 @@ export default function App() {
                 ? () => void openShare(Number(inviteLink.replace('match_', '')), activeConfig)
                 : undefined
             }
+            highlightShare={inviteIntent}
             onLeaveWaiting={
               inviteLink
                 ? () => {

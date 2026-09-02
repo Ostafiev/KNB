@@ -25,6 +25,7 @@ interface TelegramWebApp {
   shareMessage?: (preparedMessageId: string, callback?: (sent: boolean) => void) => void
   openTelegramLink?: (url: string) => void
   openLink?: (url: string, options?: { try_instant_view?: boolean }) => void
+  onEvent?: (event: string, handler: (data?: { error?: string }) => void) => void
   HapticFeedback?: {
     impactOccurred: (style: HapticStyle) => void
     notificationOccurred: (type: NotificationType) => void
@@ -71,11 +72,26 @@ export function getTelegramColorScheme(): 'light' | 'dark' | undefined {
   return getWebApp()?.colorScheme
 }
 
+/**
+ * Что именно ответил клиент на просьбу показать окно выбора чата.
+ *
+ * Обычный обработчик получает только «да/нет». Причину отказа Telegram
+ * присылает отдельным событием — без неё разбор упирается в догадки.
+ */
+let lastShareError = ''
+
 export function initTelegram(): void {
   const wa = getWebApp()
   if (!wa) return
   wa.ready()
   wa.expand()
+
+  wa.onEvent?.('shareMessageFailed', (data) => {
+    lastShareError = data?.error ? `отказ: ${data.error}` : 'отказ без причины'
+  })
+  wa.onEvent?.('shareMessageSent', () => {
+    lastShareError = ''
+  })
 }
 
 export function haptic(style: HapticStyle = 'light'): void {
@@ -133,6 +149,7 @@ export function telegramDiagnostics(): string {
   const parts = [`Telegram ${wa.version ?? '?'}`, wa.platform ?? 'платформа ?']
   parts.push(bridgeKind())
   parts.push(wa.shareMessage ? 'метод: есть' : 'метод: нет')
+  if (lastShareError) parts.push(lastShareError)
   if (typeof window !== 'undefined') parts.push(window.location.host)
   return parts.join(' · ')
 }
