@@ -9,6 +9,7 @@ import {
   updateProfile,
 } from '../domain/users.js'
 import { query } from '../db/client.js'
+import { uniqueNickname } from '../domain/nicknames.js'
 
 const AVATAR_IDS = [
   'gamepad', 'dev', 'artist', 'astronaut', 'manager', 'chef', 'cowboy', 'elf',
@@ -26,6 +27,24 @@ const profilePatch = z.object({
 export async function meRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/me', { preHandler: requireAuth }, async (request) => ({
     user: toPublicUser(request.currentUser!),
+  }))
+
+  /**
+   * Придумать ник за игрока.
+   *
+   * Имя из Telegram подставляется само, но светить его хочет не каждый.
+   * Выбор был между настоящим именем и придумыванием на месте — а придумывать
+   * на входе никто не любит. Ники здесь того же вида, что и у ботов: по одной
+   * подписи уже не понять, кто перед тобой.
+   */
+  app.get('/api/nickname', { preHandler: requireAuth }, async () => ({
+    nickname: await uniqueNickname(async (candidate) => {
+      const rows = await query<{ id: number }>(
+        'SELECT id FROM users WHERE lower(nickname) = lower($1) LIMIT 1',
+        [candidate],
+      )
+      return rows.length > 0
+    }),
   }))
 
   app.patch('/api/me', { preHandler: requireAuth }, async (request, reply) => {

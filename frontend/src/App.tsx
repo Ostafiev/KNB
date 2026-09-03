@@ -21,7 +21,8 @@ import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
 import { initTelegram, getStartParam } from './telegram/sdk'
-import type { MatchView } from './api/client'
+import { buildInviteMessage, buildInviteUrl, buildShareHref } from './lib/invite'
+import type { MatchView, InviteView } from './api/client'
 import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
 
 const EMPTY_MATCH: MatchConfig = {
@@ -261,20 +262,27 @@ export default function App() {
             })
             .then(({ startParam }) => {
               setInviteLink(startParam)
+              if (!options.share) return
+
               /*
-               * Окно выбора чата открывается только по живому нажатию.
+               * Окно выбора чата — сразу, без второго нажатия.
                *
-               * Раньше приложение пыталось открыть его само, как только сервер
-               * заведёт матч. Между нажатием и этим моментом успевал пройти
-               * запрос к серверу — и для Telegram это была уже не реакция на
-               * палец человека, а самодеятельность страницы. Такое он молча
-               * не выполняет: ни окна, ни ответа.
+               * Человек уже сказал, чего хочет: выставил условие пари и нажал
+               * «отправить другу». Просить его нажать ещё раз на следующем
+               * экране — значит переспрашивать об одном и том же.
                *
-               * Хуже того, эта попытка запирала дверь изнутри: внутри Telegram
-               * взводился засов «окно уже показано», и следующее нажатие,
-               * настоящее, падало с ошибкой. Поэтому здесь мы только готовим
-               * ссылку, а окно открывает сам человек кнопкой.
+               * Открываем переходом по адресу, а не командой к Telegram.
+               * Команду он молча не выполнял; переход же перехватывает сам —
+               * это тот же путь, что и у кнопки, и он проверен.
                */
+              window.location.href = buildShareHref(
+                buildInviteUrl(startParam),
+                buildInviteMessage(t, {
+                  bet: config.bet,
+                  rounds: config.roundsTotal,
+                  condition: config.condition,
+                }),
+              )
             })
             .catch((error: unknown) => {
               // Показываем настоящую причину: «не удалось» ничего не объясняет.
@@ -290,6 +298,33 @@ export default function App() {
       go('waiting')
     },
     [balance, go, liveOn, live, demoPlayAllowed, status, t],
+  )
+
+  /**
+   * Вернуться к свёрнутому приглашению.
+   *
+   * Условия боя восстанавливаем из самого приглашения, а не из того, что
+   * помнит экран: человек мог за это время создать другой бой, посмотреть
+   * чужие и вообще уйти из приложения.
+   */
+  const resumeInvite = useCallback(
+    (invite: InviteView) => {
+      setMatch({
+        mode: 'friend',
+        bet: invite.bet,
+        roundsTotal: invite.rounds,
+        condition: invite.condition ?? '',
+        opponentName: invite.guest?.nickname ?? '',
+        opponentAvatar: avatarEmoji(invite.guest?.avatarId ?? 'gamepad'),
+        opponentRating: invite.guest?.rating ?? ECONOMY.ELO_START,
+      })
+      setInviteLink(`match_${invite.matchId}`)
+      setInviteIntent(true)
+      // Вернулся к экрану ожидания — значит снова готов играть прямо сейчас.
+      live.inviteReady(invite.matchId)
+      go('waiting')
+    },
+    [go, live],
   )
 
   /** Правка 14: «Следующий бой» — новый соперник, условия те же, без подтверждений. */
@@ -478,6 +513,7 @@ export default function App() {
             onOpponents={openOpponents}
             onCreate={() => go('create')}
             onStartMatch={startMatch}
+            onResumeInvite={resumeInvite}
           />
         )}
 

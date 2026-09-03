@@ -1,7 +1,8 @@
 import { randomInt, randomBytes } from 'node:crypto'
 import { query, queryOne, withTransaction } from '../db/client.js'
 import { postEntry, DuplicateOperation } from './ledger.js'
-import { CHOICES, createMatch, type Choice } from './match.js'
+import { CHOICES, createMatch, startMatch, MatchError, type Choice } from './match.js'
+import { uniqueNickname } from './nicknames.js'
 
 /**
  * Боты.
@@ -32,7 +33,10 @@ export interface BotSettings {
 
 const DEFAULTS: BotSettings = {
   enabled: true,
-  openMatches: 3,
+  // Восьми хватает, чтобы в списке нашлись разные ставки и разное число
+  // раундов. Трёх не хватало: человек выбирал свои условия и не совпадал
+  // ни с одним боем, а значит просто ждал.
+  openMatches: 8,
   minBet: 25,
   maxBet: 100,
   moveMinMs: 1500,
@@ -56,19 +60,6 @@ export async function getBotSettings(): Promise<BotSettings> {
 }
 
 // ─── Профили ─────────────────────────────────────────────────────────────────
-
-/**
- * Имена без выдумки: обычные, какими подписываются в Telegram. Бот с именем
- * «Терминатор 3000» выдал бы себя первым же взглядом на список.
- */
-const FIRST_NAMES = [
-  'Артём', 'Никита', 'Дмитрий', 'Сергей', 'Максим', 'Илья', 'Егор', 'Роман',
-  'Павел', 'Кирилл', 'Данил', 'Влад', 'Антон', 'Тимур', 'Марк',
-  'Анна', 'Мария', 'Ольга', 'Дарья', 'Полина', 'Юлия', 'Ксения', 'Алина',
-  'Вера', 'Лиза', 'Настя', 'Катя', 'Софья', 'Милана', 'Ева',
-]
-
-const LAST_INITIALS = ['А.', 'Б.', 'В.', 'Г.', 'Д.', 'К.', 'Л.', 'М.', 'Н.', 'П.', 'Р.', 'С.', 'Т.', 'Ф.', 'Ш.']
 
 const AVATAR_IDS = [
   'gamepad', 'dev', 'artist', 'astronaut', 'manager', 'chef', 'cowboy',
@@ -95,7 +86,34 @@ export interface BotRow {
  * диапазона: настоящие идентификаторы туда не попадут, и живого человека
  * с ботом не перепутать.
  */
+/**
+ * Переименовывает ботов, заведённых по старому образцу.
+ *
+ * Прежде боты подписывались «Максим Б.» — паспортным именем с инициалом. На
+ * фоне живых игроков, которые зовут себя `nik99`, это бросалось в глаза, и
+ * список читался как перепись. Новые боты уже другие, но старые остались бы
+ * в базе навсегда — а достаточно нескольких, чтобы весь приём был раскрыт.
+ */
+async function renameLegacyBots(): Promise<void> {
+  const legacy = await query<{ id: number }>(
+    `SELECT id FROM users WHERE is_bot = TRUE AND (nickname LIKE '% %' OR nickname LIKE '%.%')`,
+  )
+
+  for (const bot of legacy) {
+    const nickname = await uniqueNickname(async (candidate) => {
+      const row = await queryOne<{ id: number }>(
+        'SELECT id FROM users WHERE lower(nickname) = lower($1) LIMIT 1',
+        [candidate],
+      )
+      return row !== null
+    })
+    await query('UPDATE users SET nickname = $2 WHERE id = $1', [bot.id, nickname])
+  }
+}
+
 export async function ensureBots(count: number): Promise<BotRow[]> {
+  await renameLegacyBots()
+
   const existing = await query<BotRow>(
     'SELECT id, nickname, coins_balance, rating FROM users WHERE is_bot = TRUE ORDER BY id',
   )
@@ -106,7 +124,13 @@ export async function ensureBots(count: number): Promise<BotRow[]> {
 
   for (let index = existing.length; index < count; index += 1) {
     const telegramId = -1_000_000 - index
-    const nickname = `${pick(FIRST_NAMES)} ${pick(LAST_INITIALS)}`
+    const nickname = await uniqueNickname(async (candidate) => {
+      const row = await queryOne<{ id: number }>(
+        'SELECT id FROM users WHERE lower(nickname) = lower($1) LIMIT 1',
+        [candidate],
+      )
+      return row !== null
+    })
 
     await withTransaction(async (client) => {
       const { rows } = await client.query<{ id: number }>(
@@ -222,6 +246,84 @@ export async function topUpOpenMatches(settings: BotSettings): Promise<number> {
   }
 
   return created
+}
+
+/**
+ * Сколько человек ждёт соперника, прежде чем к нему зайдёт бот.
+ *
+ * Раньше ждать можно было бесконечно: боты держали три открытых боя со
+ * случайными ставками, и совпасть с выбором человека они могли только по
+ * везению. Ждать десять секунд скучно; ждать минуту — значит закрыть игру.
+ */
+const BOT_RESCUE_MS = 7000
+
+/**
+ * Заходит в бои, где человек ждёт слишком долго.
+ *
+ * Это не подмена подбора, а его нижняя граница: живой соперник всегда имеет
+ * фору в семь секунд, и только если его нет — приходит бот. Условия боя не
+ * трогаем, играем по тем, что выставил человек.
+ */
+export async function rescueWaitingPlayers(settings: BotSettings): Promise<number> {
+  if (!settings.enabled) return 0
+
+  const waiting = await query<{ id: number; bet_amount: number }>(
+    `SELECT m.id, m.bet_amount
+       FROM matches m
+       JOIN users u ON u.id = m.player1_id
+      WHERE m.status = 'searching'
+        AND m.player2_id IS NULL
+        AND u.is_bot = FALSE
+        AND m.created_at < now() - ($1::int * INTERVAL '1 millisecond')
+      ORDER BY m.created_at`,
+    [BOT_RESCUE_MS],
+  )
+  if (waiting.length === 0) return 0
+
+  const bots = await ensureBots(Math.max(settings.openMatches * 3, 12))
+  await refillBots()
+
+  const busy = await query<{ id: number }>(
+    `SELECT DISTINCT u.id
+       FROM users u
+       JOIN matches m ON (m.player1_id = u.id OR m.player2_id = u.id)
+      WHERE u.is_bot = TRUE AND m.status IN ('searching', 'active')`,
+  )
+  const busyIds = new Set(busy.map((row) => row.id))
+
+  let joined = 0
+  for (const match of waiting) {
+    // Бот должен потянуть ставку: проигрыш списывается с него по-настоящему.
+    const free = bots.find(
+      (bot) => !busyIds.has(bot.id) && Number(bot.coins_balance) >= Number(match.bet_amount),
+    )
+    if (!free) break
+
+    try {
+      const started = await startMatch(match.id, free.id)
+      busyIds.add(free.id)
+      joined += 1
+      onMatchStarted?.(started)
+    } catch (error) {
+      // Живой соперник успел войти первым — так и должно быть.
+      if (!(error instanceof MatchError)) throw error
+    }
+  }
+
+  return joined
+}
+
+/**
+ * Кому сообщить о начатом бое.
+ *
+ * Сам домен ничего не знает про сокеты: обработчик подставляет слой связи,
+ * иначе бот заходил бы в матч молча и человек ждал бы дальше уже зря.
+ */
+type StartedHandler = (started: Awaited<ReturnType<typeof startMatch>>) => void
+let onMatchStarted: StartedHandler | null = null
+
+export function setMatchStartAnnouncer(handler: StartedHandler): void {
+  onMatchStarted = handler
 }
 
 /** Убирает засидевшиеся заявки ботов, чтобы список не выглядел застывшим. */

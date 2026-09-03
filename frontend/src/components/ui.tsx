@@ -116,6 +116,57 @@ export function PrimaryButton({
   )
 }
 
+/**
+ * Кнопка «отправить в Telegram» — на самом деле ссылка.
+ *
+ * Просить клиент показать список чатов через Bot API оказалось нельзя:
+ * он молчал — ни окна, ни отказа. А обычную ссылку на t.me Telegram
+ * перехватывает сам и показывает своё окно «Выберите чаты». Поэтому все
+ * места, откуда игра расходится между людьми, ведут сюда: один способ,
+ * который работает во всех клиентах и не зависит от версии.
+ */
+export function ShareButton({
+  href,
+  children,
+  variant = 'blue',
+  onShared,
+  className = '',
+}: {
+  href: string
+  children: React.ReactNode
+  variant?: 'blue' | 'green' | 'ghost'
+  /** Позвать после нажатия: свернуть экран, отметить попытку. */
+  onShared?: () => void
+  className?: string
+}) {
+  const gradient =
+    variant === 'green'
+      ? 'linear-gradient(135deg, var(--tg-green) 0%, var(--tg-green-dark) 100%)'
+      : 'linear-gradient(135deg, var(--tg-blue) 0%, var(--tg-blue-dark) 100%)'
+
+  return (
+    <a
+      href={href}
+      onClick={() => {
+        hapticSelection()
+        onShared?.()
+      }}
+      className={
+        variant === 'ghost'
+          ? `tappable w-full py-3.5 rounded-2xl font-bold text-tg-text glass-strong border border-tg-blue/40 flex items-center justify-center gap-2 ${className}`
+          : `tappable w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 ${variant === 'green' ? 'glow-green' : 'glow-blue'} ${className}`
+      }
+      style={
+        variant === 'ghost'
+          ? undefined
+          : { background: gradient, color: 'var(--tg-on-accent)' }
+      }
+    >
+      {children}
+    </a>
+  )
+}
+
 /** Вторичная кнопка на стеклянной подложке. */
 export function GhostButton({
   onClick,

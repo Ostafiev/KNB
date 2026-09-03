@@ -21,7 +21,8 @@
     "verify:stage8": "tsx --env-file=.env src/dev/verifyStage8.ts",
     "verify:share": "tsx --env-file=.env src/dev/verifyShare.ts",
     "verify:invites": "tsx --env-file=.env src/dev/verifyInvites.ts",
-    "probe:share": "tsx --env-file=.env src/dev/probeShare.ts"
+    "probe:share": "tsx --env-file=.env src/dev/probeShare.ts",
+    "verify:matchmaking": "tsx --env-file=.env src/dev/verifyMatchmaking.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",

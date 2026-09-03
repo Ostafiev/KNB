@@ -348,8 +348,10 @@ async function main(): Promise<void> {
       profiles.map((p) => p.telegram_id).slice(0, 3),
     )
     check(
-      profiles.every((p) => /^[А-Яа-яЁё]+ [А-ЯЁ]\.$/.test(p.nickname)),
-      'имена выглядят как обычные телеграмные, а не как «Бот №1»',
+      // Тот же вид, что предлагается живому игроку при входе: ник, а не имя
+      // с инициалом. По одной подписи не должно быть понятно, кто перед тобой.
+      profiles.every((p) => /^[A-Za-z][A-Za-z0-9_]{1,23}$/.test(p.nickname)),
+      'подписаны как обычные игроки — ни «Бот №1», ни паспортное имя',
       profiles.map((p) => p.nickname).slice(0, 5),
     )
     check(

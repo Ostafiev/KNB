@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ScreenHeader, Chip } from '../components/ui'
+import { ScreenHeader, Chip, ShareButton } from '../components/ui'
 import { useAppChrome } from '../components/AppMenu'
 import { InviteSheet } from '../sheets/InviteSheet'
 import { useI18n, useT } from '../i18n'
@@ -8,10 +8,10 @@ import { useOpenMatches } from '../state/useOpenMatches'
 import { useFriends } from '../state/useFriends'
 import { useLiveMatch } from '../state/LiveMatch'
 import { avatarEmoji } from '../data/mock'
-import { shareLink } from '../telegram/sdk'
 import { useAppState } from '../state/AppState'
 import { ECONOMY } from '../config/economy'
 import { formatCoins, formatRounds } from '../lib/format'
+import { buildShareHref } from '../lib/invite'
 import { hapticSelection } from '../telegram/sdk'
 import type { MatchConfig, Player, Tab } from '../types'
 
@@ -205,6 +205,25 @@ export function OpponentsScreen({
             </button>
           ))}
         </div>
+
+        {/*
+          Создать свой бой можно прямо отсюда.
+          Раньше кнопка жила только в пустом списке — а человек, который
+          посмотрел чужие условия и не нашёл своих, вынужден был возвращаться
+          на главную. Дорога назад ради одного нажатия — лишняя.
+        */}
+        {onCreate && (
+          <button
+            onClick={() => {
+              hapticSelection()
+              onCreate()
+            }}
+            className="tappable w-full mt-2 py-3 rounded-2xl text-sm font-bold text-tg-blue-light glass border border-tg-blue/30 flex items-center justify-center gap-2"
+          >
+            <span className="text-base">➕</span>
+            {t('opponents.createOwn')}
+          </button>
+        )}
       </div>
 
       {/* Фильтры — только для случайного боя: у друга ставка выбирается при вызове */}
@@ -273,13 +292,18 @@ export function OpponentsScreen({
               <div className="text-tg-subtext text-sm leading-relaxed">
                 {t('friends.empty.hint')}
               </div>
-              <button
-                onClick={() => shareLink(referralLink, t('referral.subtitle'))}
-                className="tappable mt-1 rounded-xl px-4 py-2.5 text-sm font-bold"
-                style={{ background: 'var(--tg-blue)', color: 'var(--tg-on-accent)' }}
+              {/*
+                Раньше эта кнопка звала Telegram через Bot API и молчала:
+                человек нажимал, и не происходило ничего. Теперь это обычная
+                ссылка — Telegram сам открывает по ней список чатов.
+              */}
+              <ShareButton
+                href={buildShareHref(referralLink, t('referral.subtitle'))}
+                className="mt-1"
               >
+                <span className="text-lg">👥</span>
                 {t('friends.empty.action')}
-              </button>
+              </ShareButton>
             </div>
           )}
 

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { BottomSheet, SheetDivider } from '../components/BottomSheet'
-import { PrimaryButton } from '../components/ui'
+import { ShareButton } from '../components/ui'
 import { useT } from '../i18n'
 import { useAppState } from '../state/AppState'
 import { ECONOMY } from '../config/economy'
-import { hapticNotify, shareLink } from '../telegram/sdk'
+import { hapticNotify } from '../telegram/sdk'
+import { buildShareHref } from '../lib/invite'
 
 /**
  * ЧАСТЬ 2, п.3 — реферальный бонус.
@@ -103,14 +104,14 @@ export function ReferralSheet({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      <PrimaryButton
-        onClick={() => shareLink(referralLink, t('referral.subtitle'))}
+      <ShareButton
+        href={buildShareHref(referralLink, t('referral.subtitle'))}
         variant="green"
         className="mt-1"
       >
         <span className="text-xl">📨</span>
         <span>{t('referral.share')}</span>
-      </PrimaryButton>
+      </ShareButton>
     </BottomSheet>
   )
 }

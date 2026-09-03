@@ -6,11 +6,18 @@ import {
   isKnownBot,
   refreshBotIds,
   refreshStaleMatches,
+  rescueWaitingPlayers,
+  setMatchStartAnnouncer,
   thinkingDelayMs,
   topUpOpenMatches,
 } from '../domain/bots.js'
 import { recordMove, MatchError, type MatchRow, type RoundRow } from '../domain/match.js'
-import { announceOutcome, announceOpponentMoved, setRoundOpenHook } from './hub.js'
+import {
+  announceOutcome,
+  announceOpponentMoved,
+  announceMatchStart,
+  setRoundOpenHook,
+} from './hub.js'
 
 /**
  * Жизнь ботов на сервере.
@@ -25,6 +32,9 @@ import { announceOutcome, announceOpponentMoved, setRoundOpenHook } from './hub.
  */
 
 const TICK_MS = 20_000
+
+/** Как часто смотрим, не заждался ли кто-то соперника. */
+const RESCUE_TICK_MS = 2500
 
 const pending = new Map<string, NodeJS.Timeout>()
 
@@ -100,11 +110,39 @@ async function tick(app: FastifyInstance): Promise<void> {
   }
 }
 
+/**
+ * Отдельный, частый круг — только про ожидание.
+ *
+ * Общий круг раз в двадцать секунд годится, чтобы держать список боёв
+ * наполненным, но не годится, чтобы кого-то спасать: обещание «соперник за
+ * десять секунд» нельзя выполнить, проверяя раз в двадцать.
+ */
+async function rescueTick(app: FastifyInstance): Promise<void> {
+  try {
+    const settings = await getBotSettings()
+    if (!settings.enabled) return
+
+    const joined = await rescueWaitingPlayers(settings)
+    if (joined > 0) app.log.debug(`боты вошли к ждущим игрокам: ${joined}`)
+  } catch (error) {
+    app.log.error({ err: error }, 'не удалось подобрать соперника')
+  }
+}
+
 export async function startBotRuntime(app: FastifyInstance): Promise<void> {
   setRoundOpenHook((match, round) => void onRoundOpen(match, round))
+
+  // Бот вошёл в матч — обоим игрокам нужно об этом сказать, иначе человек
+  // так и будет смотреть на песочные часы при уже начавшемся бое.
+  setMatchStartAnnouncer((started) => {
+    void announceMatchStart(started.match, started.round)
+  })
 
   await tick(app)
 
   const timer = setInterval(() => void tick(app), TICK_MS)
   timer.unref?.()
+
+  const rescue = setInterval(() => void rescueTick(app), RESCUE_TICK_MS)
+  rescue.unref?.()
 }

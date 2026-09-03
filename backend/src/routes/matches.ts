@@ -14,7 +14,13 @@ import { buildMatchView } from '../domain/matchView.js'
 import { getReferralSummary } from '../domain/referrals.js'
 import { listFriends } from '../domain/friends.js'
 import { buildInviteMessage } from '../domain/inviteMessage.js'
-import { getInvite, markReady, startIfBothReady, INVITE_TTL_MS } from '../domain/invites.js'
+import {
+  getInvite,
+  markReady,
+  myPendingInvites,
+  startIfBothReady,
+  INVITE_TTL_MS,
+} from '../domain/invites.js'
 import { savePreparedInlineMessage, TelegramApiError } from '../lib/telegramApi.js'
 import { listOpenMatches } from '../domain/matchmaking.js'
 import { recordEvent } from '../domain/events.js'
@@ -331,6 +337,16 @@ export async function matchRoutes(app: FastifyInstance): Promise<void> {
 
     const matches = await Promise.all(rows.map((row) => buildMatchView(row, me)))
     return { matches }
+  })
+
+  /**
+   * Свои приглашения, которые ещё ждут друга.
+   *
+   * Нужны главной: свёрнутое ожидание должно быть видно, иначе человек
+   * забудет, что уже позвал кого-то, и позовёт снова.
+   */
+  app.get('/api/me/invites', { preHandler: requireAuth }, async (request) => {
+    return { invites: await myPendingInvites(request.currentUser!.id) }
   })
 
   /** Сводка по приглашённым. */

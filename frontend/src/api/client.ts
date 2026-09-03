@@ -331,16 +331,18 @@ export const api = {
   },
 
   /**
-   * Просит сервер подготовить приглашение к отправке в Telegram.
-   * Возвращает номер готового сообщения — по нему открывается окно выбора чата.
+   * Ник, придуманный сервером.
+   *
+   * Тем же генератором, что и у ботов: подписи игроков и ботов не должны
+   * различаться на вид, иначе одних видно среди других.
    */
-  prepareShare(matchId: number): Promise<{
-    preparedMessageId: string | null
-    reason?: string
-    text: string
-    url: string
-  }> {
-    return request(`/matches/${matchId}/share`, { method: 'POST' })
+  suggestNickname(): Promise<{ nickname: string }> {
+    return request('/nickname')
+  },
+
+  /** Свои приглашения, которые ещё ждут друга — для блока на главной. */
+  getMyInvites(): Promise<{ invites: InviteView[] }> {
+    return request('/me/invites')
   },
 
   /**

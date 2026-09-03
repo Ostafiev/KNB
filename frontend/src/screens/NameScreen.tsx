@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { PrimaryButton } from '../components/ui'
 import { useT } from '../i18n'
 import { useAppState } from '../state/AppState'
+import { api } from '../api/client'
 import { AVATARS } from '../data/mock'
 import { hapticNotify, hapticSelection } from '../telegram/sdk'
 
@@ -18,8 +19,27 @@ export function NameScreen({ onDone }: { onDone: () => void }) {
   const { nickname, avatarId, setNickname, setAvatar } = useAppState()
 
   const [draft, setDraft] = useState(nickname)
+  const [suggesting, setSuggesting] = useState(false)
   const trimmed = draft.trim()
   const tooShort = trimmed.length < 2
+
+  /**
+   * Ник придумывает сервер — там же, где придумываются ники ботам.
+   *
+   * Один список на всех не случайность: если бы игроки подписывались иначе,
+   * чем боты, обе стороны было бы видно насквозь.
+   */
+  const suggest = async (): Promise<void> => {
+    setSuggesting(true)
+    try {
+      const { nickname: suggested } = await api.suggestNickname()
+      setDraft(suggested)
+    } catch {
+      // Сервер недоступен — человек всегда может вписать своё.
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-5">
@@ -43,7 +63,26 @@ export function NameScreen({ onDone }: { onDone: () => void }) {
             style={{ borderColor: 'var(--tg-border)' }}
             placeholder={t('name.placeholder')}
           />
-          <div className="text-right text-tg-subtext text-xs">{trimmed.length}/24</div>
+          {/*
+            Придумать ник за человека.
+            Выбор был между настоящим именем и придумыванием на месте, а
+            придумывать на входе никто не любит — и большинство оставляло имя
+            из Telegram, даже если не хотело его светить.
+          */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                hapticSelection()
+                void suggest()
+              }}
+              disabled={suggesting}
+              className="tappable rounded-xl px-3 py-1.5 text-xs font-bold text-tg-blue-light glass border border-tg-blue/30"
+              style={{ opacity: suggesting ? 0.5 : 1 }}
+            >
+              🎲 {t('name.suggest')}
+            </button>
+            <span className="text-tg-subtext text-xs">{trimmed.length}/24</span>
+          </div>
         </div>
 
         <div className="glass rounded-2xl p-4 flex flex-col gap-3">

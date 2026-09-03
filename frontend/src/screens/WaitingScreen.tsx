@@ -133,9 +133,30 @@ export function WaitingScreen({
               {highlightShare && <span className="text-xl">👥</span>}
               {t('waiting.invite.share')}
             </a>
-            <div className="glass rounded-2xl px-4 py-3 text-tg-subtext text-xs break-all text-center">
-              {inviteUrl}
+
+            {/*
+              Ссылка и копирование — одной строкой.
+              Отдельная кнопка «Скопировать ссылку» занимала целую полосу ради
+              действия, которому хватает значка. Экран был из пяти кнопок
+              подряд, и главная терялась среди равных.
+            */}
+            <div className="glass rounded-2xl pl-4 pr-2 py-2 flex items-center gap-2">
+              <span className="flex-1 min-w-0 text-tg-subtext text-xs truncate">{inviteUrl}</span>
+              <button
+                onClick={() => {
+                  void navigator.clipboard
+                    ?.writeText(`${inviteMessage}\n${inviteUrl}`)
+                    .then(() => setCopied(true))
+                    .catch(() => setCopied(false))
+                }}
+                aria-label={t('waiting.invite.copy')}
+                className="tappable rounded-xl w-9 h-9 flex items-center justify-center text-base flex-shrink-0"
+                style={{ background: 'var(--tg-fill)' }}
+              >
+                {copied ? '✓' : '⧉'}
+              </button>
             </div>
+
             {/*
               Караулить экран не нужно: приглашение живёт сутки, и когда друг
               зайдёт, придёт окно «играем?». Раньше выход отсюда засчитывался
@@ -146,25 +167,6 @@ export function WaitingScreen({
                 {t('waiting.canLeave')}
               </p>
             )}
-            <button
-              onClick={() => {
-                void navigator.clipboard
-                  ?.writeText(`${inviteMessage}\n${inviteUrl}`)
-                  .then(() => setCopied(true))
-                  .catch(() => setCopied(false))
-              }}
-              className="tappable w-full py-3 rounded-2xl font-semibold text-tg-subtext glass border border-tg-border"
-            >
-              {copied ? t('waiting.invite.copied') : t('waiting.invite.copy')}
-            </button>
-            {onLeaveWaiting && (
-              <button
-                onClick={onLeaveWaiting}
-                className="tappable w-full py-3 rounded-2xl font-semibold text-tg-blue-light"
-              >
-                {t('waiting.leaveButton')}
-              </button>
-            )}
           </div>
         )}
         {/*
@@ -173,10 +175,28 @@ export function WaitingScreen({
         */}
       </div>
 
-      <div className="w-full pb-4">
+      {/*
+        Внизу — два разных решения, и выглядеть они должны по-разному.
+        «Свернуть» человек нажимает часто: бой остаётся ждать, и вернуться к
+        нему можно с главной. «Отменить» — редкое и необратимое, поэтому оно
+        не кнопка во всю ширину, а спокойная строчка под ней.
+      */}
+      <div className="w-full pb-4 flex flex-col gap-1">
+        {onLeaveWaiting && (
+          <button
+            onClick={onLeaveWaiting}
+            className="tappable w-full py-4 rounded-2xl font-bold text-tg-text glass border border-tg-border"
+          >
+            {t('waiting.leaveButton')}
+          </button>
+        )}
         <button
           onClick={onCancel}
-          className="tappable w-full py-4 rounded-2xl font-bold text-tg-red glass border border-tg-red/30"
+          className={
+            onLeaveWaiting
+              ? 'tappable w-full py-3 rounded-2xl text-sm font-semibold text-tg-red'
+              : 'tappable w-full py-4 rounded-2xl font-bold text-tg-red glass border border-tg-red/30'
+          }
         >
           {t('waiting.cancel')}
         </button>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { StatChip } from '../components/ui'
 import { useAppChrome } from '../components/AppMenu'
 import { InviteSheet } from '../sheets/InviteSheet'
@@ -10,17 +10,51 @@ import { formatCoins, formatRelative, formatRounds } from '../lib/format'
 import { FRIENDS, avatarEmoji } from '../data/mock'
 import { useFriends } from '../state/useFriends'
 import { useRecentGames } from '../state/useRecentGames'
+import { useMyInvites } from '../state/useMyInvites'
+import type { InviteView } from '../api/client'
 import { hapticNotify } from '../telegram/sdk'
 import type { MatchConfig, Tab } from '../types'
+
+/**
+ * Сколько приглашению осталось жить.
+ *
+ * Точное время до минуты здесь не нужно и даже вредно: это не таймер, а
+ * напоминание, что вызов не вечный. «Меньше часа» тревожит ровно настолько,
+ * насколько нужно, чтобы человек вернулся к нему сегодня.
+ */
+function expiresIn(expiresAt: number | null, t: ReturnType<typeof useT>): string {
+  if (!expiresAt) return ''
+  const left = expiresAt - Date.now()
+  if (left <= 0) return t('home.waitingInvites.expired')
+  const hours = Math.floor(left / 3_600_000)
+  return hours >= 1
+    ? t('home.waitingInvites.hoursLeft', { hours })
+    : t('home.waitingInvites.soon')
+}
+
+
+/**
+ * Появление блоков — только при первом заходе.
+ *
+ * Каждый блок главной выезжает со своей задержкой: 0.05с, 0.1с, 0.15с…
+ * В первый раз это выглядит живо. Но экран пересобирается при каждом
+ * возвращении с боя, и тогда та же анимация читается как рывки подгрузки —
+ * будто данные приходят по кускам. Второй раз человеку показывать нечего:
+ * он и так знает, что здесь лежит.
+ */
+let homeShownOnce = false
 
 export function HomeScreen({
   onOpponents,
   onCreate,
   onStartMatch,
+  onResumeInvite,
 }: {
   onOpponents: (tab: Tab) => void
   onCreate: () => void
   onStartMatch: (config: MatchConfig, options?: { share?: boolean }) => void
+  /** Вернуться к свёрнутому приглашению. */
+  onResumeInvite: (invite: InviteView) => void
 }) {
   const t = useT()
   const { lang } = useI18n()
@@ -61,8 +95,19 @@ export function HomeScreen({
     ? friendList.filter((f) => f.online).length
     : FRIENDS.filter((f) => f.online).length
   const { games: recentGames } = useRecentGames()
+  // Свои приглашения, которые ещё ждут друга.
+  const { invites: myInvites } = useMyInvites()
   const visibleGames = gamesExpanded ? recentGames : recentGames.slice(0, 3)
   const winrate = stats.games > 0 ? Math.round((stats.wins / stats.games) * 100) : 0
+
+  const [animate] = useState(!homeShownOnce)
+  useEffect(() => {
+    homeShownOnce = true
+  }, [])
+  /** Класс появления — пустой при возвращении на экран. */
+  const enter = animate ? 'animate-slide-up' : ''
+  /** Задержка появления нужна только вместе с анимацией. */
+  const delay = (seconds: string): string | undefined => (animate ? seconds : undefined)
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-4 gap-4">
@@ -81,7 +126,7 @@ export function HomeScreen({
       )}
 
       {/* Карточка профиля */}
-      <div className="glass rounded-3xl p-5 animate-slide-up relative overflow-hidden">
+      <div className={`glass rounded-3xl p-5 relative overflow-hidden ${enter}`}>
         <div
           className="absolute inset-0 opacity-10 rounded-3xl pointer-events-none"
           style={{ background: 'linear-gradient(135deg, var(--tg-blue) 0%, var(--tg-green) 100%)' }}
@@ -180,7 +225,7 @@ export function HomeScreen({
         плитками, и глазу не за что было зацепиться. Теперь главный путь —
         крупная кнопка, а два остальных остаются рядом, но потише.
       */}
-      <div className="flex flex-col gap-2 animate-slide-up" style={{ animationDelay: '0.05s' }}>
+      <div className={`flex flex-col gap-2 ${enter}`} style={{ animationDelay: delay('0.05s') }}>
         <button
           onClick={() => onOpponents('random')}
           className="tappable w-full rounded-2xl py-4 flex items-center justify-center gap-3 font-black text-lg glow-blue"
@@ -225,11 +270,72 @@ export function HomeScreen({
         </div>
       </div>
 
+      {/*
+        Бои, которые ждут друга.
+        ────────────────────────
+        Ожидание можно свернуть и заниматься чем угодно: приглашение живёт
+        сутки. Но свёрнутое и невидимое — почти потерянное. Человек не помнит,
+        кого позвал и на каких условиях, и либо зовёт заново, либо бросает.
+
+        Поэтому блок появляется сам, как только есть чего ждать, и исчезает,
+        когда ждать нечего — без пустого состояния и объяснений.
+      */}
+      {myInvites.length > 0 && (
+        <div className={`flex flex-col gap-2 ${enter}`} style={{ animationDelay: delay('0.08s') }}>
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-tg-subtext text-xs font-semibold uppercase tracking-wider">
+              {t('home.waitingInvites')}
+            </span>
+            <span
+              className="text-[11px] font-bold rounded-full px-1.5"
+              style={{ background: 'var(--tg-fill)', color: 'var(--tg-subtext)' }}
+            >
+              {myInvites.length}
+            </span>
+          </div>
+
+          {myInvites.map((invite) => (
+            <button
+              key={invite.matchId}
+              onClick={() => onResumeInvite(invite)}
+              className="tappable glass rounded-2xl px-4 py-3 flex items-center gap-3 border text-left"
+              style={{
+                borderColor: invite.guestReady ? 'var(--tg-green)' : 'var(--tg-border)',
+              }}
+            >
+              <span className="text-xl flex-shrink-0">{invite.guestReady ? '🔔' : '⏳'}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-bold text-tg-text truncate">
+                  {/*
+                    Условие пари — единственное, чем один вызов отличается от
+                    другого в глазах человека. Оно и стоит первым.
+                  */}
+                  {invite.condition?.trim() ||
+                    (invite.guest
+                      ? t('home.waitingInvites.accepted', { name: invite.guest.nickname })
+                      : t('home.waitingInvites.noCondition'))}
+                </span>
+                <span className="block text-tg-subtext text-xs truncate">
+                  {invite.bet === ECONOMY.FREE_BET ? t('bet.free') : `${invite.bet} 🪙`} ·{' '}
+                  {formatRounds(invite.rounds, lang)} · {expiresIn(invite.expiresAt, t)}
+                </span>
+              </span>
+              <span
+                className="text-xs font-bold flex-shrink-0"
+                style={{ color: invite.guestReady ? 'var(--tg-green)' : 'var(--tg-blue-light)' }}
+              >
+                {invite.guestReady ? t('home.waitingInvites.play') : t('home.waitingInvites.open')}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Ежедневный бонус */}
       <div
-        className="glass rounded-2xl p-4 flex items-center gap-3 animate-slide-up"
+        className={`glass rounded-2xl p-4 flex items-center gap-3 ${enter}`}
         style={{
-          animationDelay: '0.1s',
+          animationDelay: delay('0.1s'),
           border: dailyBonusAvailable ? '1px solid var(--tg-green)' : '1px solid var(--tg-border)',
         }}
       >
@@ -265,7 +371,7 @@ export function HomeScreen({
       </div>
 
       {/* Баланс медяков. Правка 16: «Пополнить» живёт только здесь, не в баре */}
-      <div className="glass rounded-2xl p-4 flex items-center gap-4 animate-slide-up" style={{ animationDelay: '0.15s' }}>
+      <div className={`glass rounded-2xl p-4 flex items-center gap-4 ${enter}`} style={{ animationDelay: delay('0.15s') }}>
         <div
           className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
           style={{ background: 'rgba(255, 214, 10, 0.15)' }}
@@ -286,8 +392,8 @@ export function HomeScreen({
       {/* Правка 5: открываем сразу вкладку «Друзья» */}
       <button
         onClick={() => onOpponents('friends')}
-        className="tappable glass rounded-2xl p-4 flex items-center gap-4 animate-slide-up border border-tg-border"
-        style={{ animationDelay: '0.2s' }}
+        className={`tappable glass rounded-2xl p-4 flex items-center gap-4 border border-tg-border ${enter}`}
+        style={{ animationDelay: delay('0.2s') }}
       >
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
@@ -313,8 +419,8 @@ export function HomeScreen({
       {/* Аккордеон последних игр. Пока матчей нет, блок не показываем вовсе:
           пустой заголовок выглядел бы поломкой. */}
       <div
-        className="animate-slide-up pb-2"
-        style={{ animationDelay: '0.25s', display: recentGames.length === 0 ? 'none' : undefined }}
+        className={`pb-2 ${enter}`}
+        style={{ animationDelay: delay('0.25s'), display: recentGames.length === 0 ? 'none' : undefined }}
       >
         <button
           onClick={() => setGamesExpanded((v) => !v)}
@@ -345,7 +451,7 @@ export function HomeScreen({
             <div
               key={`${game.opp}-${game.minutesAgo}`}
               className="glass rounded-xl px-4 py-3 flex items-center gap-3 animate-fade-in"
-              style={{ animationDelay: `${i * 0.04}s` }}
+              style={{ animationDelay: delay(`${i * 0.04}s`) }}
             >
               <span className="text-xl">{game.hand}</span>
               <div className="flex-1 min-w-0">

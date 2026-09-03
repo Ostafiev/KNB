@@ -202,6 +202,25 @@ export async function invitesNeedingAttention(userId: number): Promise<InviteVie
 }
 
 /**
+ * Свои приглашения, которые ещё живы.
+ *
+ * Свернуть ожидание можно в любой момент — приглашение от этого не исчезает,
+ * оно живёт сутки. Но если его нигде не видно, оно всё равно что потеряно:
+ * человек не помнит, кого позвал и на каких условиях, и зовёт заново.
+ * Поэтому главная показывает такой список.
+ */
+export async function myPendingInvites(userId: number): Promise<InviteView[]> {
+  const rows = await query<Row>(
+    `${SELECT_INVITE}
+       AND m.player1_id = $1
+       AND (m.expires_at IS NULL OR m.expires_at > now())
+     ORDER BY m.created_at DESC`,
+    [userId],
+  )
+  return rows.map(toView)
+}
+
+/**
  * Оба отметились и оба на связи — можно начинать.
  *
  * Проверка живёт здесь, а не в местах вызова: начать бой можно из трёх
