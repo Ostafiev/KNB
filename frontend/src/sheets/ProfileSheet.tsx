@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BottomSheet, SheetRow, SheetDivider } from '../components/BottomSheet'
 import { Toggle } from '../components/ui'
 import { useI18n, useT } from '../i18n'
+import { applyMotion, readMotion } from '../lib/motion'
 import { useTheme } from '../theme/ThemeProvider'
 import { useAppState } from '../state/AppState'
 import { AVATARS } from '../data/mock'
@@ -25,6 +26,7 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
 
   const [editing, setEditing] = useState(false)
   const [draftName, setDraftName] = useState(nickname)
+  const [calm, setCalm] = useState(readMotion() === 'calm')
 
   const saveProfile = () => {
     const trimmed = draftName.trim()
@@ -120,6 +122,31 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
         <span className="text-xl">{isDark ? '🌙' : '☀️'}</span>
         <span className="text-sm font-semibold text-tg-text flex-1">{t('profile.theme')}</span>
         <Toggle checked={isDark} onChange={(next) => setTheme(next ? 'dark' : 'light')} label={t('profile.theme')} />
+      </div>
+
+      {/*
+        Плавный режим.
+        Слабому телефону украшения обходятся дороже, чем стоят: покачивания,
+        свечения и выезжающие блоки складываются в рывки. Пусть человек сам
+        решит — без них игра ровнее, а суть не теряется.
+      */}
+      <div className="glass rounded-2xl px-4 py-3 flex items-center gap-3">
+        <span className="text-xl">{calm ? '🪶' : '✨'}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-tg-text">{t('profile.calmMotion')}</span>
+          <span className="block text-tg-subtext text-xs leading-snug">
+            {t('profile.calmMotion.sub')}
+          </span>
+        </span>
+        <Toggle
+          checked={calm}
+          onChange={(next) => {
+            const mode = next ? 'calm' : 'full'
+            applyMotion(mode)
+            setCalm(next)
+          }}
+          label={t('profile.calmMotion')}
+        />
       </div>
 
       <div className="glass rounded-2xl px-4 py-3 flex items-center gap-3">

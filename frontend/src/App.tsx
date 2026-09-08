@@ -21,6 +21,7 @@ import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
 import { initTelegram, getStartParam } from './telegram/sdk'
+import { applyMotion, readMotion } from './lib/motion'
 import type { MatchView, InviteView } from './api/client'
 import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
 
@@ -92,6 +93,8 @@ export default function App() {
 
   useEffect(() => {
     initTelegram()
+    // Выбранный на этом устройстве режим движения — до первой отрисовки.
+    applyMotion(readMotion())
   }, [])
 
   const go = useCallback((next: Screen) => setScreen(next), [])

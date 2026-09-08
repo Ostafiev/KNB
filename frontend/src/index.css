@@ -170,20 +170,28 @@ body {
 }
 
 /* Neon glow utilities — интенсивность зависит от темы */
+/*
+ * Свечение стало вдвое компактнее.
+ *
+ * Тень с размытием в 60 пикселей заставляет браузер закрашивать площадь
+ * втрое больше самой кнопки, и так на каждой перерисовке. Внешний ореол
+ * ужат до 28 пикселей: на глаз почти не отличить, а платить приходится
+ * заметно меньше.
+ */
 .glow-blue {
-  box-shadow: 0 0 20px rgb(42 159 214 / var(--tg-glow-a)), 0 0 60px rgb(42 159 214 / var(--tg-glow-b));
+  box-shadow: 0 0 16px rgb(42 159 214 / var(--tg-glow-a)), 0 0 28px rgb(42 159 214 / var(--tg-glow-b));
 }
 
 .glow-green {
-  box-shadow: 0 0 20px rgb(42 202 92 / var(--tg-glow-a)), 0 0 60px rgb(42 202 92 / var(--tg-glow-b));
+  box-shadow: 0 0 16px rgb(42 202 92 / var(--tg-glow-a)), 0 0 28px rgb(42 202 92 / var(--tg-glow-b));
 }
 
 .glow-red {
-  box-shadow: 0 0 20px rgb(229 82 82 / var(--tg-glow-a)), 0 0 60px rgb(229 82 82 / var(--tg-glow-b));
+  box-shadow: 0 0 16px rgb(229 82 82 / var(--tg-glow-a)), 0 0 28px rgb(229 82 82 / var(--tg-glow-b));
 }
 
 .glow-yellow {
-  box-shadow: 0 0 20px rgb(255 214 10 / var(--tg-glow-a)), 0 0 60px rgb(255 214 10 / var(--tg-glow-b));
+  box-shadow: 0 0 16px rgb(255 214 10 / var(--tg-glow-a)), 0 0 28px rgb(255 214 10 / var(--tg-glow-b));
 }
 
 .text-glow-blue {
@@ -428,6 +436,44 @@ body {
  * вестибулярными нарушениями от прыгающих элементов физически плохо. Смысл
  * игры от этого не теряется: руки просто сразу показывают выбор.
  */
+/*
+ * Плавный режим — переключатель в профиле.
+ *
+ * Системная настройка есть не у всех под рукой, а телефоны бывают слабее
+ * любых наших ухищрений. Пусть человек сам решит: без украшений, но ровно.
+ * Правила те же, что и для системного «уменьшить движение».
+ */
+html[data-motion='calm'] .animate-pulse-ring,
+html[data-motion='calm'] .animate-pulse-core,
+html[data-motion='calm'] .animate-shake,
+html[data-motion='calm'] .animate-shake-final,
+html[data-motion='calm'] .animate-float,
+html[data-motion='calm'] .animate-spin-slow,
+html[data-motion='calm'] .animate-gradient {
+  animation: none;
+}
+
+html[data-motion='calm'] .animate-slide-up,
+html[data-motion='calm'] .animate-slide-in-left,
+html[data-motion='calm'] .animate-slide-in-right,
+html[data-motion='calm'] .animate-scale-in,
+html[data-motion='calm'] .animate-fade-in {
+  animation-duration: 0.01ms;
+}
+
+/* Свечения и мягкий фон — тоже украшения, и тоже стоят кадров. */
+html[data-motion='calm'] .glow-blue,
+html[data-motion='calm'] .glow-green,
+html[data-motion='calm'] .glow-red,
+html[data-motion='calm'] .glow-yellow {
+  box-shadow: none;
+}
+
+html[data-motion='calm'] body::before,
+body[data-motion='calm']::before {
+  background: var(--tg-bg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-ring,
   .animate-pulse-core,
@@ -469,12 +515,39 @@ body {
 .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 24px); }
 
 /* Mesh background */
-.mesh-bg {
+/*
+ * Фон рисуется один раз на всё приложение.
+ * ────────────────────────────────────────
+ * Раньше эти три больших градиента висели на корневом блоке каждого экрана —
+ * а таких экранов десять. Градиент во весь экран дорог в отрисовке, и платить
+ * за него приходилось при каждой прокрутке и каждой смене экрана: браузер
+ * заново закрашивал всю площадь под содержимым.
+ *
+ * Теперь это отдельный неподвижный слой позади всего. Он рисуется один раз
+ * и дальше только лежит: прокрутка и переходы его не трогают. Отсюда и
+ * «подвисает везде понемногу» — фон был общим для всех экранов.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(ellipse at 20% 10%, var(--tg-mesh-1) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 80%, var(--tg-mesh-2) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 50%, var(--tg-mesh-3) 0%, transparent 70%),
     var(--tg-bg);
+  /* Отдельный слой у видеокарты: не перерисовывается вместе со страницей. */
+  transform: translateZ(0);
+}
+
+/*
+ * Класс остался на экранах как был, но теперь ничего не красит: фон под ними
+ * общий. Держим его, чтобы не править десять файлов ради пустоты.
+ */
+.mesh-bg {
+  background: transparent;
 }
 
 /* Ползунок ставки — единый вид в обеих темах */
@@ -515,6 +588,44 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
   pointer-events: none;
   border-radius: inherit;
+}
+
+/*
+ * Плавный режим — переключатель в профиле.
+ *
+ * Системная настройка есть не у всех под рукой, а телефоны бывают слабее
+ * любых наших ухищрений. Пусть человек сам решит: без украшений, но ровно.
+ * Правила те же, что и для системного «уменьшить движение».
+ */
+html[data-motion='calm'] .animate-pulse-ring,
+html[data-motion='calm'] .animate-pulse-core,
+html[data-motion='calm'] .animate-shake,
+html[data-motion='calm'] .animate-shake-final,
+html[data-motion='calm'] .animate-float,
+html[data-motion='calm'] .animate-spin-slow,
+html[data-motion='calm'] .animate-gradient {
+  animation: none;
+}
+
+html[data-motion='calm'] .animate-slide-up,
+html[data-motion='calm'] .animate-slide-in-left,
+html[data-motion='calm'] .animate-slide-in-right,
+html[data-motion='calm'] .animate-scale-in,
+html[data-motion='calm'] .animate-fade-in {
+  animation-duration: 0.01ms;
+}
+
+/* Свечения и мягкий фон — тоже украшения, и тоже стоят кадров. */
+html[data-motion='calm'] .glow-blue,
+html[data-motion='calm'] .glow-green,
+html[data-motion='calm'] .glow-red,
+html[data-motion='calm'] .glow-yellow {
+  box-shadow: none;
+}
+
+html[data-motion='calm'] body::before,
+body[data-motion='calm']::before {
+  background: var(--tg-bg);
 }
 
 @media (prefers-reduced-motion: reduce) {

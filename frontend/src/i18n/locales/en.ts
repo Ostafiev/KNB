@@ -134,6 +134,8 @@ export const en: Record<TranslationKey, string> = {
   'profile.language': 'Language',
   'profile.language.auto': 'Auto',
   'profile.theme': 'Dark theme',
+  'profile.calmMotion': 'Calm motion',
+  'profile.calmMotion.sub': 'Fewer animations — smoother on slower phones.',
   'profile.sound': 'Sound',
   'profile.transactions': 'Transaction history',
   'profile.transactions.sub': 'All top-ups and withdrawals',

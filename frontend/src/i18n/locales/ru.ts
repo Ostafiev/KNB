@@ -132,6 +132,8 @@ export const ru = {
   'profile.language': 'Язык',
   'profile.language.auto': 'Авто',
   'profile.theme': 'Тёмная тема',
+  'profile.calmMotion': 'Плавный режим',
+  'profile.calmMotion.sub': 'Меньше анимаций — ровнее на слабом телефоне.',
   'profile.sound': 'Звук',
   'profile.transactions': 'История транзакций',
   'profile.transactions.sub': 'Все пополнения и выводы',
