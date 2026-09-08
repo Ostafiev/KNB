@@ -97,7 +97,7 @@ export const en: Record<TranslationKey, string> = {
   'home.invite.sub': 'Challenge a friend',
   'home.friends': 'Friends',
   'home.friends.online': '{count} online now',
-  'home.waitingInvites': 'Waiting for a friend',
+  'home.waitingBattles': 'Waiting for a match',
   'home.waitingInvites.noCondition': 'Challenge with no wager',
   'home.waitingInvites.accepted': '{name} accepted',
   'home.waitingInvites.open': 'Open',

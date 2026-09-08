@@ -193,6 +193,16 @@ function loginQuery(telegramId: number, botToken: string, name = 'Владеле
 async function main(): Promise<void> {
   await connectRedis()
 
+  /*
+   * Настройки, которые проверка ломает под себя, запоминаем и возвращаем.
+   *
+   * Раньше она оставляла после себя три открытых боя и потолок ставки в
+   * сотню — те самые значения, что нужны ей для подсчёта. Живой сервер после
+   * прогона выглядел обеднённым, и разбираться, почему ботов вдруг мало,
+   * приходилось заново. Проверка не должна портить то, что проверяет.
+   */
+  const original = await getBotSettings()
+
   const app = await buildServer()
   await app.listen({ port: 0, host: '127.0.0.1' })
   const address = app.server.address()
@@ -354,9 +364,16 @@ async function main(): Promise<void> {
       'подписаны как обычные игроки — ни «Бот №1», ни паспортное имя',
       profiles.map((p) => p.nickname).slice(0, 5),
     )
+    /*
+     * Заводится бот около стартового рейтинга — но потом он играет, и рейтинг
+     * ходит вверх-вниз, как у всех. Требовать от него навсегда остаться в
+     * коридоре создания значило бы требовать, чтобы он не выигрывал.
+     * Проверяем то, что действительно важно: среди соперников нет ни мастера,
+     * ни явной жертвы.
+     */
     check(
-      profiles.every((p) => p.rating >= 900 && p.rating < 1150),
-      'рейтинг около стартового: не мастер и не жертва',
+      profiles.every((p) => p.rating > 700 && p.rating < 1600),
+      'рейтинг в человеческих пределах: не мастер и не жертва',
       profiles.map((p) => p.rating),
     )
     check(
@@ -673,9 +690,12 @@ async function main(): Promise<void> {
     human.close()
   } finally {
     await setConfig('round_seconds', 10)
-    await setConfig('bots_move_min_ms', 1500)
-    await setConfig('bots_move_max_ms', 7000)
-    await setConfig('bots_max_bet', 100)
+    await setConfig('bots_enabled', original.enabled ? 1 : 0)
+    await setConfig('bots_open_matches', original.openMatches)
+    await setConfig('bots_min_bet', original.minBet)
+    await setConfig('bots_max_bet', original.maxBet)
+    await setConfig('bots_move_min_ms', original.moveMinMs)
+    await setConfig('bots_move_max_ms', original.moveMaxMs)
     await app.close()
     await redis.quit()
     await pool.end()

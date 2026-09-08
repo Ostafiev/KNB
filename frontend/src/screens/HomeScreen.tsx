@@ -270,67 +270,6 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/*
-        Бои, которые ждут друга.
-        ────────────────────────
-        Ожидание можно свернуть и заниматься чем угодно: приглашение живёт
-        сутки. Но свёрнутое и невидимое — почти потерянное. Человек не помнит,
-        кого позвал и на каких условиях, и либо зовёт заново, либо бросает.
-
-        Поэтому блок появляется сам, как только есть чего ждать, и исчезает,
-        когда ждать нечего — без пустого состояния и объяснений.
-      */}
-      {myInvites.length > 0 && (
-        <div className={`flex flex-col gap-2 ${enter}`} style={{ animationDelay: delay('0.08s') }}>
-          <div className="flex items-center gap-2 px-1">
-            <span className="text-tg-subtext text-xs font-semibold uppercase tracking-wider">
-              {t('home.waitingInvites')}
-            </span>
-            <span
-              className="text-[11px] font-bold rounded-full px-1.5"
-              style={{ background: 'var(--tg-fill)', color: 'var(--tg-subtext)' }}
-            >
-              {myInvites.length}
-            </span>
-          </div>
-
-          {myInvites.map((invite) => (
-            <button
-              key={invite.matchId}
-              onClick={() => onResumeInvite(invite)}
-              className="tappable glass rounded-2xl px-4 py-3 flex items-center gap-3 border text-left"
-              style={{
-                borderColor: invite.guestReady ? 'var(--tg-green)' : 'var(--tg-border)',
-              }}
-            >
-              <span className="text-xl flex-shrink-0">{invite.guestReady ? '🔔' : '⏳'}</span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-sm font-bold text-tg-text truncate">
-                  {/*
-                    Условие пари — единственное, чем один вызов отличается от
-                    другого в глазах человека. Оно и стоит первым.
-                  */}
-                  {invite.condition?.trim() ||
-                    (invite.guest
-                      ? t('home.waitingInvites.accepted', { name: invite.guest.nickname })
-                      : t('home.waitingInvites.noCondition'))}
-                </span>
-                <span className="block text-tg-subtext text-xs truncate">
-                  {invite.bet === ECONOMY.FREE_BET ? t('bet.free') : `${invite.bet} 🪙`} ·{' '}
-                  {formatRounds(invite.rounds, lang)} · {expiresIn(invite.expiresAt, t)}
-                </span>
-              </span>
-              <span
-                className="text-xs font-bold flex-shrink-0"
-                style={{ color: invite.guestReady ? 'var(--tg-green)' : 'var(--tg-blue-light)' }}
-              >
-                {invite.guestReady ? t('home.waitingInvites.play') : t('home.waitingInvites.open')}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Ежедневный бонус */}
       <div
         className={`glass rounded-2xl p-4 flex items-center gap-3 ${enter}`}
@@ -415,6 +354,67 @@ export function HomeScreen({
           <span className="text-tg-subtext text-sm">›</span>
         </div>
       </button>
+
+      {/*
+        Бои, которые ждут друга.
+        ────────────────────────
+        Ожидание можно свернуть и заниматься чем угодно: приглашение живёт
+        сутки. Но свёрнутое и невидимое — почти потерянное. Человек не помнит,
+        кого позвал и на каких условиях, и либо зовёт заново, либо бросает.
+
+        Поэтому блок появляется сам, как только есть чего ждать, и исчезает,
+        когда ждать нечего — без пустого состояния и объяснений.
+      */}
+      {myInvites.length > 0 && (
+        <div className={`flex flex-col gap-2 ${enter}`} style={{ animationDelay: delay('0.22s') }}>
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-tg-subtext text-xs font-semibold uppercase tracking-wider">
+              {t('home.waitingBattles')}
+            </span>
+            <span
+              className="text-[11px] font-bold rounded-full px-1.5"
+              style={{ background: 'var(--tg-fill)', color: 'var(--tg-subtext)' }}
+            >
+              {myInvites.length}
+            </span>
+          </div>
+
+          {myInvites.map((invite) => (
+            <button
+              key={invite.matchId}
+              onClick={() => onResumeInvite(invite)}
+              className="tappable glass rounded-2xl px-4 py-3 flex items-center gap-3 border text-left"
+              style={{
+                borderColor: invite.guestReady ? 'var(--tg-green)' : 'var(--tg-border)',
+              }}
+            >
+              <span className="text-xl flex-shrink-0">{invite.guestReady ? '🔔' : '⏳'}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-bold text-tg-text truncate">
+                  {/*
+                    Условие пари — единственное, чем один вызов отличается от
+                    другого в глазах человека. Оно и стоит первым.
+                  */}
+                  {invite.condition?.trim() ||
+                    (invite.guest
+                      ? t('home.waitingInvites.accepted', { name: invite.guest.nickname })
+                      : t('home.waitingInvites.noCondition'))}
+                </span>
+                <span className="block text-tg-subtext text-xs truncate">
+                  {invite.bet === ECONOMY.FREE_BET ? t('bet.free') : `${invite.bet} 🪙`} ·{' '}
+                  {formatRounds(invite.rounds, lang)} · {expiresIn(invite.expiresAt, t)}
+                </span>
+              </span>
+              <span
+                className="text-xs font-bold flex-shrink-0"
+                style={{ color: invite.guestReady ? 'var(--tg-green)' : 'var(--tg-blue-light)' }}
+              >
+                {invite.guestReady ? t('home.waitingInvites.play') : t('home.waitingInvites.open')}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Аккордеон последних игр. Пока матчей нет, блок не показываем вовсе:
           пустой заголовок выглядел бы поломкой. */}

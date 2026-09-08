@@ -95,7 +95,7 @@ export const ru = {
   'home.invite.sub': 'Вызвать друга',
   'home.friends': 'Друзья',
   'home.friends.online': '{count} онлайн сейчас',
-  'home.waitingInvites': 'Ждут друга',
+  'home.waitingBattles': 'Ожидание боя',
   'home.waitingInvites.noCondition': 'Вызов без условия',
   'home.waitingInvites.accepted': '{name} принял вызов',
   'home.waitingInvites.open': 'Открыть',

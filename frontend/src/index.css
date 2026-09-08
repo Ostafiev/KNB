@@ -317,6 +317,35 @@ body {
   100% { transform: scale(2) rotate(180deg); opacity: 0; }
 }
 
+/*
+ * Отдельный слой для всего, что движется постоянно.
+ * ────────────────────────────────────────────────
+ * Руки в бою — это эмодзи, то есть текст. Когда текст едет и меняет размер,
+ * браузер по умолчанию перерисовывает букву заново на каждом кадре: сначала
+ * заново растрирует глиф нужного размера, потом кладёт его на страницу. На
+ * этой машине разницы не видно, на телефоне это и есть те самые рывки.
+ *
+ * will-change говорит браузеру заранее: этот кусок будет двигаться, вынеси
+ * его на свой слой. Тогда глиф растрируется один раз, а дальше только
+ * сдвигается — работой видеокарты, без перерисовки.
+ *
+ * Ставим только там, где движение идёт долго или постоянно. Обещать слой
+ * каждому появляющемуся блоку нельзя: слои занимают память, и на слабом
+ * телефоне лекарство станет болезнью.
+ */
+.animate-pulse-ring,
+.animate-pulse-core,
+.animate-shake,
+.animate-shake-final,
+.animate-start-cue,
+.animate-collision-left,
+.animate-collision-right,
+.animate-float,
+.animate-spin-slow {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
 .animate-pulse-ring {
   animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
 }
@@ -376,6 +405,47 @@ body {
 
 .animate-spin-slow {
   animation: spin-slow 8s linear infinite;
+}
+
+/*
+ * Свечение снимаем с того, что движется.
+ *
+ * Тень с размытием в 60 пикселей приходится пересчитывать каждый раз, когда
+ * элемент меняет размер, — и она тянет за собой на перерисовку всё, что под
+ * ней. Красиво на неподвижной кнопке, дорого на трясущейся руке.
+ */
+.animate-shake,
+.animate-shake-final,
+.animate-collision-left,
+.animate-collision-right {
+  box-shadow: none;
+}
+
+/*
+ * Кому анимации мешают — тому их не показываем.
+ *
+ * Системная настройка «уменьшить движение» включается не от вкуса: людям с
+ * вестибулярными нарушениями от прыгающих элементов физически плохо. Смысл
+ * игры от этого не теряется: руки просто сразу показывают выбор.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-ring,
+  .animate-pulse-core,
+  .animate-shake,
+  .animate-shake-final,
+  .animate-float,
+  .animate-spin-slow,
+  .animate-gradient {
+    animation: none;
+  }
+
+  .animate-slide-up,
+  .animate-slide-in-left,
+  .animate-slide-in-right,
+  .animate-scale-in,
+  .animate-fade-in {
+    animation-duration: 0.01ms;
+  }
 }
 
 /* Tap highlight */
