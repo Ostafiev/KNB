@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
+    "verify:path": "node verifyUserPath.mjs",
+    "verify:share": "node verifyShareHref.mjs",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },

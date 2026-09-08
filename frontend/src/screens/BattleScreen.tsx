@@ -94,22 +94,37 @@ export function BattleScreen({
    * В демо-режиме (сервера нет) остаётся прежнее поведение со случайным ходом,
    * иначе витрина зависала бы на нуле.
    */
+  /*
+   * Часы раунда идут чаще, чем меняется цифра, — и это нарочно.
+   *
+   * Проверять четыре раза в секунду нужно, чтобы не проспать последнюю
+   * долю секунды. А вот перерисовывать экран четырежды в секунду не нужно:
+   * на экране боя в это время живут анимации рук, и лишние перерисовки
+   * складывались в заметные рывки. Поэтому состояние меняем только когда
+   * действительно сменилась секунда.
+   *
+   * В зависимостях — сама отметка времени, а не объект матча: объект
+   * приходит новым с каждым сообщением сервера, и часы пересоздавались
+   * по нескольку раз за раунд.
+   */
+  const endsAt = live?.endsAt ?? null
   useEffect(() => {
-    if (!live) return
-    if (live.endsAt === null) return
+    if (endsAt === null) return
 
     const tick = (): void => {
-      const left = Math.ceil((live.endsAt! - Date.now()) / 1000)
-      setRoundTimer(Math.max(0, left))
-      if (left <= 0 && !expired) {
-        setExpired(true)
-        if (!committed.current) hapticNotify('warning')
+      const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
+      setRoundTimer((shown) => (shown === left ? shown : left))
+      if (left <= 0) {
+        setExpired((was) => {
+          if (!was && !committed.current) hapticNotify('warning')
+          return true
+        })
       }
     }
     tick()
     const timer = setInterval(tick, 250)
     return () => clearInterval(timer)
-  }, [live, expired])
+  }, [endsAt])
 
   useEffect(() => {
     if (live) return

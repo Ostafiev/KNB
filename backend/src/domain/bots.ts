@@ -3,6 +3,7 @@ import { query, queryOne, withTransaction } from '../db/client.js'
 import { postEntry, DuplicateOperation } from './ledger.js'
 import { CHOICES, createMatch, startMatch, MatchError, type Choice } from './match.js'
 import { uniqueNickname } from './nicknames.js'
+import { isOnline } from './presence.js'
 
 /**
  * Боты.
@@ -192,7 +193,16 @@ export async function refillBots(): Promise<void> {
 // ─── Открытые бои ────────────────────────────────────────────────────────────
 
 /** Нечётное число раундов, как и у людей. */
-const ROUNDS = [1, 3, 5]
+const ROUNDS = [3, 5, 1, 7, 9]
+
+/**
+ * Ставки, которые предлагает само приложение.
+ *
+ * Список должен совпадать с кнопками на экране создания боя: если бот
+ * открывает бой на 175 медяков, такого выбора у человека всё равно нет,
+ * и совпасть они не смогут.
+ */
+const BET_PRESETS = [25, 50, 100, 250, 500]
 
 /** Ставки кратны 25 — те же значения, что предлагает приложение. */
 function randomBet(min: number, max: number): number {
@@ -229,15 +239,44 @@ export async function topUpOpenMatches(settings: BotSettings): Promise<number> {
   const busyIds = new Set(busy.map((row) => row.id))
   const free = bots.filter((bot) => !busyIds.has(bot.id))
 
+  /*
+   * Открываем не что попало, а то, чего в списке не хватает.
+   *
+   * Раньше бот брал случайную ставку и случайное число раундов. При трёх
+   * открытых боях список почти никогда не совпадал с тем, что выбрал
+   * человек, — и «Найти бой» превращалось в ожидание. Теперь сначала
+   * закрываем пустые сочетания из тех, что предлагает само приложение,
+   * и только потом добираем случайными.
+   */
+  const existing = await query<{ bet_amount: string; rounds_total: number }>(
+    `SELECT m.bet_amount::text, m.rounds_total
+       FROM matches m
+       JOIN users u ON u.id = m.player1_id
+      WHERE m.status = 'searching' AND m.player2_id IS NULL AND u.is_bot = TRUE`,
+  )
+  const covered = new Set(existing.map((r) => `${Number(r.bet_amount)}:${r.rounds_total}`))
+
+  const wanted: { bet: number; rounds: number }[] = []
+  for (const rounds of ROUNDS) {
+    for (const bet of BET_PRESETS) {
+      if (bet < settings.minBet || bet > settings.maxBet) continue
+      if (covered.has(`${bet}:${rounds}`)) continue
+      wanted.push({ bet, rounds })
+    }
+  }
+
   let created = 0
   for (let index = 0; index < missing && index < free.length; index += 1) {
-    const bet = randomBet(settings.minBet, settings.maxBet)
+    const combo = wanted[index] ?? {
+      bet: randomBet(settings.minBet, settings.maxBet),
+      rounds: pick(ROUNDS),
+    }
     try {
       await createMatch({
         mode: 'random',
         player1Id: free[index].id,
-        bet,
-        rounds: pick(ROUNDS),
+        bet: combo.bet,
+        rounds: combo.rounds,
       })
       created += 1
     } catch {
@@ -255,7 +294,7 @@ export async function topUpOpenMatches(settings: BotSettings): Promise<number> {
  * случайными ставками, и совпасть с выбором человека они могли только по
  * везению. Ждать десять секунд скучно; ждать минуту — значит закрыть игру.
  */
-const BOT_RESCUE_MS = 7000
+const BOT_RESCUE_MS = 4000
 
 /**
  * Заходит в бои, где человек ждёт слишком долго.
@@ -267,8 +306,8 @@ const BOT_RESCUE_MS = 7000
 export async function rescueWaitingPlayers(settings: BotSettings): Promise<number> {
   if (!settings.enabled) return 0
 
-  const waiting = await query<{ id: number; bet_amount: number }>(
-    `SELECT m.id, m.bet_amount
+  const waiting = await query<{ id: number; player1_id: number; bet_amount: number }>(
+    `SELECT m.id, m.player1_id, m.bet_amount
        FROM matches m
        JOIN users u ON u.id = m.player1_id
       WHERE m.status = 'searching'
@@ -293,6 +332,17 @@ export async function rescueWaitingPlayers(settings: BotSettings): Promise<numbe
 
   let joined = 0
   for (const match of waiting) {
+    /*
+     * Заходить к тому, кого нет у экрана, — ловушка.
+     *
+     * Бой начнётся, раунды пойдут по часам сервера, человек не сходит ни
+     * разу и вернётся к готовому проигрышу, которого не видел. Раньше это
+     * было редкостью: совпасть с ботом можно было только по везению.
+     * Теперь бот заходит сам за семь секунд — и без этой проверки каждый,
+     * кто отвлёкся сразу после нажатия, получал бы поражение ни за что.
+     */
+    if (!isOnline(match.player1_id)) continue
+
     // Бот должен потянуть ставку: проигрыш списывается с него по-настоящему.
     const free = bots.find(
       (bot) => !busyIds.has(bot.id) && Number(bot.coins_balance) >= Number(match.bet_amount),

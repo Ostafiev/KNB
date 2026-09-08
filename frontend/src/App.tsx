@@ -21,7 +21,6 @@ import { useT } from './i18n'
 import { useLiveMatch } from './state/LiveMatch'
 import { OPPONENTS, avatarEmoji } from './data/mock'
 import { initTelegram, getStartParam } from './telegram/sdk'
-import { buildInviteMessage, buildInviteUrl, buildShareHref } from './lib/invite'
 import type { MatchView, InviteView } from './api/client'
 import type { HandChoice, MatchConfig, Outcome, RoundResult, Screen, Tab } from './types'
 
@@ -262,27 +261,21 @@ export default function App() {
             })
             .then(({ startParam }) => {
               setInviteLink(startParam)
-              if (!options.share) return
-
               /*
-               * Окно выбора чата — сразу, без второго нажатия.
+               * Окно выбора чата открывает сам человек — кнопкой на экране
+               * ожидания. Приложение этого не делает и не может.
                *
-               * Человек уже сказал, чего хочет: выставил условие пари и нажал
-               * «отправить другу». Просить его нажать ещё раз на следующем
-               * экране — значит переспрашивать об одном и том же.
+               * Пробовал: после создания боя переходить по адресу t.me прямо
+               * отсюда. Телефон показывал не окно выбора чата, а саму страницу
+               * t.me внутри приложения — с кнопкой SHARE и предложением
+               * скачать Telegram. Разница в том, что Telegram перехватывает
+               * нажатие на ссылку, а не переход, сделанный страницей: для него
+               * это два разных события, и второе он не считает намерением
+               * человека.
                *
-               * Открываем переходом по адресу, а не командой к Telegram.
-               * Команду он молча не выполнял; переход же перехватывает сам —
-               * это тот же путь, что и у кнопки, и он проверен.
+               * Поэтому здесь только заводим бой и показываем экран ожидания,
+               * где ссылка настоящая и работает.
                */
-              window.location.href = buildShareHref(
-                buildInviteUrl(startParam),
-                buildInviteMessage(t, {
-                  bet: config.bet,
-                  rounds: config.roundsTotal,
-                  condition: config.condition,
-                }),
-              )
             })
             .catch((error: unknown) => {
               // Показываем настоящую причину: «не удалось» ничего не объясняет.

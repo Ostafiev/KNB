@@ -13,6 +13,7 @@
  * Запуск: npm run verify:matchmaking
  */
 
+import WebSocket from 'ws'
 import { buildServer } from '../server.js'
 import { closePool, query, queryOne } from '../db/client.js'
 import { closeRedis } from '../lib/redis.js'
@@ -38,6 +39,9 @@ const PROMISE_MS = 10_000
 
 async function main(): Promise<void> {
   const app = await buildServer()
+  await app.listen({ port: 0, host: '127.0.0.1' })
+  const address = app.server.address()
+  const wsUrl = `ws://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/ws`
   const stamp = Date.now() % 1_000_000
 
   console.log('\nНики')
@@ -75,6 +79,15 @@ async function main(): Promise<void> {
   })
   const token = auth.json().token as string
   const userId = auth.json().user.id as number
+
+  /*
+   * Держим соединение открытым: бот заходит только к тому, кто у экрана.
+   * Без этого проверка ловила бы не подбор, а собственную невнимательность —
+   * игрока, который закрыл приложение, спасать не от чего.
+   */
+  const socket = new WebSocket(`${wsUrl}?token=${token}`)
+  await new Promise((resolve) => socket.on('open', resolve))
+  await new Promise((r) => setTimeout(r, 300))
 
   /*
    * Условия нарочно неудобные: ставка и число раундов, которые вряд ли
@@ -148,6 +161,7 @@ async function main(): Promise<void> {
     'списано именно с участников боя',
   )
 
+  socket.close()
   await app.close()
   await closePool()
   await closeRedis()
