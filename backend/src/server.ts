@@ -13,6 +13,7 @@ import { configRoutes } from './routes/config.js'
 import { eventsRoutes } from './routes/events.js'
 import { matchRoutes } from './routes/matches.js'
 import { socketRoutes, recoverActiveMatches } from './ws/socket.js'
+import { legalRoutes } from './routes/legal.js'
 import { adminRoutes } from './admin/routes.js'
 import { ensureAdminsFromEnv } from './admin/auth.js'
 
@@ -35,6 +36,7 @@ export async function buildServer() {
   await app.register(matchRoutes)
   await app.register(socketRoutes)
   await app.register(adminRoutes)
+  await app.register(legalRoutes)
 
   /*
    * Отдача самого приложения.
@@ -54,7 +56,8 @@ export async function buildServer() {
       if (
         request.url.startsWith('/api') ||
         request.url.startsWith('/health') ||
-        request.url.startsWith('/admin')
+        request.url.startsWith('/admin') ||
+        request.url.startsWith('/legal')
       ) {
         return reply.code(404).send({ error: 'not_found' })
       }

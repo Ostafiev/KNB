@@ -49,6 +49,19 @@ const schema = z.object({
    * Юзернейм бота без @. Нужен кнопке «Войти через Telegram» в админке.
    * На Render эта же переменная уходит в сборку Mini App.
    */
+  /*
+   * Данные для юридических документов.
+   *
+   * Держим в переменных окружения, а не в коде: юрлицо, страна и почта
+   * появляются позже самой игры, и менять их приходится без пересборки.
+   * Пусто — значит в документе не будет выдуманных реквизитов: лучше честно
+   * «автор игры», чем название компании, которой нет.
+   */
+  LEGAL_OWNER: z.string().optional(),
+  LEGAL_OWNER_DETAILS: z.string().optional(),
+  LEGAL_JURISDICTION: z.string().optional(),
+  LEGAL_CONTACT: z.string().optional(),
+
   BOT_USERNAME: z.string().optional(),
   VITE_BOT_USERNAME: z.string().optional(),
 
@@ -68,6 +81,12 @@ export const config = {
   isProduction: parsed.data.NODE_ENV === 'production',
   corsOrigins: parsed.data.CORS_ORIGINS === '*' ? true : parsed.data.CORS_ORIGINS.split(',').map((s) => s.trim()),
   botUsername: (parsed.data.BOT_USERNAME ?? parsed.data.VITE_BOT_USERNAME ?? '').replace(/^@/, ''),
+  legal: {
+    owner: parsed.data.LEGAL_OWNER?.trim() || null,
+    ownerDetails: parsed.data.LEGAL_OWNER_DETAILS?.trim() || null,
+    jurisdiction: parsed.data.LEGAL_JURISDICTION?.trim() || null,
+    contact: parsed.data.LEGAL_CONTACT?.trim() || null,
+  },
   adminTelegramIds: parsed.data.ADMIN_TELEGRAM_IDS.split(',')
     .map((value) => Number(value.trim()))
     .filter((value) => Number.isSafeInteger(value) && value > 0),

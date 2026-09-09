@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useT } from '../i18n'
+import { useI18n, useT } from '../i18n'
 import { PrimaryButton } from '../components/ui'
 import { hapticNotify, hapticSelection } from '../telegram/sdk'
 
@@ -13,6 +13,7 @@ import { hapticNotify, hapticSelection } from '../telegram/sdk'
  */
 export function ConsentScreen({ onAccept }: { onAccept: () => void }) {
   const t = useT()
+  const { lang } = useI18n()
   const [checked, setChecked] = useState(false)
 
   const blocks = [
@@ -47,19 +48,26 @@ export function ConsentScreen({ onAccept }: { onAccept: () => void }) {
           ))}
         </div>
 
-        {/* TODO(legal): подставить реальные URL документов */}
+        {/*
+          Документы открываются в отдельной вкладке.
+          Соглашаться, не имея возможности прочитать, — не согласие. При этом
+          читать нужно так, чтобы не потерять экран: target="_blank" открывает
+          документ поверх, а игра остаётся на месте.
+        */}
         <div className="flex flex-col gap-1.5 px-1">
           <a
-            href="#terms"
+            href={`/legal/terms?lang=${lang}`}
+            target="_blank"
+            rel="noreferrer"
             className="text-tg-blue-light text-xs font-semibold"
-            onClick={(e) => e.preventDefault()}
           >
             → {t('consent.terms.link')}
           </a>
           <a
-            href="#privacy"
+            href={`/legal/privacy?lang=${lang}`}
+            target="_blank"
+            rel="noreferrer"
             className="text-tg-blue-light text-xs font-semibold"
-            onClick={(e) => e.preventDefault()}
           >
             → {t('consent.privacy.link')}
           </a>
