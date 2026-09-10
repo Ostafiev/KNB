@@ -10,9 +10,75 @@ import { ECONOMY } from '../config/economy'
 import { HAND_EMOJI } from '../lib/game'
 import { formatCoins } from '../lib/format'
 import { hapticNotify, hapticSelection } from '../telegram/sdk'
+import { readMotion } from '../lib/motion'
 import type { MatchConfig, Outcome, RoundResult } from '../types'
 
 type RematchPhase = 'idle' | 'waiting' | 'editing' | 'opponent-confirm'
+
+/** Сколько живёт объявление исхода. Совпадает с .animate-outcome-veil. */
+const OUTCOME_CUE_MS = 1500
+
+/**
+ * Объявление исхода — крупным словом поверх итогов.
+ *
+ * Бой открывается словом «Старт», а заканчивался тихо: табло просто
+ * появлялось, и момент, ради которого играли, проходил мимо. Здесь тот же
+ * приём в обратную сторону — слово, которое видно, а потом тает, открывая
+ * подробности.
+ *
+ * Занавес ничего не перехватывает: пока он тает, по кнопкам уже можно попасть.
+ */
+function OutcomeCue({ outcome, label }: { outcome: Outcome; label: string }) {
+  const [gone, setGone] = useState(readMotion() === 'calm')
+
+  useEffect(() => {
+    if (gone) return
+    hapticNotify(outcome === 'win' ? 'success' : outcome === 'lose' ? 'error' : 'warning')
+    const timer = setTimeout(() => setGone(true), OUTCOME_CUE_MS)
+    return () => clearTimeout(timer)
+  }, [gone, outcome])
+
+  if (gone) return null
+
+  const color =
+    outcome === 'win'
+      ? 'var(--tg-green)'
+      : outcome === 'lose'
+        ? 'var(--tg-red)'
+        : 'var(--tg-yellow)'
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center animate-outcome-veil"
+      style={{
+        /*
+         * Занавес непрозрачный намеренно.
+         *
+         * С полупрозрачным слово ложилось прямо на табло и на кнопки: читалось
+         * не объявление, а наложение двух экранов друг на друга. Объявление
+         * должно быть одно на весь экран — как «Старт» перед боем, где под ним
+         * тоже ничего нет.
+         */
+        background: 'rgba(0, 0, 0, 0.86)',
+        backdropFilter: 'blur(6px)',
+        pointerEvents: 'none',
+      }}
+      aria-hidden
+    >
+      <div className="flex flex-col items-center gap-3 animate-start-cue">
+        <span className="text-6xl">
+          {outcome === 'win' ? '🏆' : outcome === 'lose' ? '💀' : '🤝'}
+        </span>
+        <span
+          className="text-5xl font-black tracking-tight text-center px-6"
+          style={{ color }}
+        >
+          {label}
+        </span>
+      </div>
+    </div>
+  )
+}
 
 export function SummaryScreen({
   config,
@@ -103,6 +169,7 @@ export function SummaryScreen({
 
   return (
     <div className="flex flex-col min-h-screen mesh-bg safe-top safe-bottom px-4 gap-4">
+      <OutcomeCue outcome={outcome} label={outcomeLabel} />
       {topBar}
       {menu}
 
@@ -153,6 +220,16 @@ export function SummaryScreen({
             <div className="text-3xl font-black font-mono text-tg-text">
               {score.opponent}:{score.player}
             </div>
+            {/*
+              Подпись под счётом.
+
+              Соперник на табло слева — значит и в счёте он первый. Без подписи
+              «0:1» рядом со словом «ПОБЕДА» читается как ошибка: человек по
+              привычке ставит себя на первое место.
+            */}
+            <div className="text-tg-subtext/70 text-[10px] -mt-1 tracking-wide">
+              {t('summary.scoreOrder')}
+            </div>
             <div className="glass rounded-full px-3 py-1 flex items-center gap-1">
               {isFree ? (
                 <span className="font-black text-sm text-tg-green">{t('bet.free')}</span>
@@ -200,8 +277,13 @@ export function SummaryScreen({
             <span className="text-tg-subtext text-xs uppercase tracking-wider">
               {t('summary.roundsRecap')}
             </span>
+            {/*
+              Тот же порядок, что на табло выше: соперник слева, игрок справа.
+              Здесь стояло наоборот, и одна и та же игра на одном экране
+              показывалась как «0:1» и как «1:0» — читалось это как ошибка счёта.
+            */}
             <span className="text-tg-subtext text-xs">
-              {score.player}:{score.opponent}
+              {score.opponent}:{score.player}
             </span>
             <span
               className="ml-auto text-tg-subtext text-xs transition-transform duration-200"

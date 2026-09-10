@@ -84,7 +84,7 @@ export function ResultScreen({
           <Hand
             choice={round.opponentChoice}
             side="left"
-            className={`text-7xl animate-collision-left ${round.outcome === 'lose' ? 'animate-float' : ''}`}
+            className={`text-7xl animate-collision ${round.outcome === 'lose' ? 'animate-float' : ''}`}
           />
           <div className="flex flex-col items-center">
             <div
@@ -97,7 +97,7 @@ export function ResultScreen({
           <Hand
             choice={round.playerChoice}
             side="right"
-            className={`text-7xl animate-collision-right ${round.outcome === 'win' ? 'animate-float' : ''}`}
+            className={`text-7xl animate-collision ${round.outcome === 'win' ? 'animate-float' : ''}`}
           />
         </div>
 

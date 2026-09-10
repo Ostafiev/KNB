@@ -243,6 +243,7 @@ export const ru = {
   'opponents.bet.high': '200+ 🪙',
   'opponents.rounds.any': 'Любые раунды',
   'opponents.rounds.n': '{n} раунд(ов)',
+  'opponents.sort.label': 'Сортировка',
   'opponents.sort.online': 'Онлайн',
   'opponents.sort.stake': 'Ставка',
   'opponents.sort.rating': 'Рейтинг',
@@ -263,6 +264,7 @@ export const ru = {
   'create.stake': 'Ставка медяками',
   'bet.free': 'Бесплатно',
   'bet.free.note': 'Бесплатная игра доступна только с друзьями и по приглашению. Рейтинг в таких матчах не меняется.',
+  'bet.custom.hint': 'Нажми на число — впиши любую ставку от {min} до {max}',
   'create.rounds': 'Количество раундов',
   'create.condition': 'Условие пари (необязательно)',
   'create.condition.placeholder': 'Например: проигравший делает 20 отжиманий…',
@@ -339,6 +341,7 @@ export const ru = {
   // ─── Итоги матча ──────────────────────────────────────────────────────────
   'summary.eyebrow': 'Итоги матча',
   'summary.cancelled': 'Матч отменён — ставки вернулись',
+  'summary.scoreOrder': 'соперник : ты',
   'summary.title': 'Матч завершён',
   'summary.win': 'ПОБЕДА',
   'summary.lose': 'ПРОИГРЫШ',

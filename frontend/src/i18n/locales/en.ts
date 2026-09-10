@@ -245,6 +245,7 @@ export const en: Record<TranslationKey, string> = {
   'opponents.bet.high': '200+ 🪙',
   'opponents.rounds.any': 'Any rounds',
   'opponents.rounds.n': '{n} rounds',
+  'opponents.sort.label': 'Sort',
   'opponents.sort.online': 'Online',
   'opponents.sort.stake': 'Bet',
   'opponents.sort.rating': 'Rating',
@@ -265,6 +266,7 @@ export const en: Record<TranslationKey, string> = {
   'create.stake': 'Coin bet',
   'bet.free': 'Free',
   'bet.free.note': 'Free games are only available with friends and by invitation. Ratings do not change in those matches.',
+  'bet.custom.hint': 'Tap the number — type any bet from {min} to {max}',
   'create.rounds': 'Number of rounds',
   'create.condition': 'Wager terms (optional)',
   'create.condition.placeholder': 'For example: the loser does 20 push-ups…',
@@ -341,6 +343,7 @@ export const en: Record<TranslationKey, string> = {
   // ─── Summary ──────────────────────────────────────────────────────────────
   'summary.eyebrow': 'Match results',
   'summary.cancelled': 'Match cancelled — bets refunded',
+  'summary.scoreOrder': 'them : you',
   'summary.title': 'Match complete',
   'summary.win': 'VICTORY',
   'summary.lose': 'DEFEAT',

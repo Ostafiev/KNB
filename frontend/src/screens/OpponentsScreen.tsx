@@ -17,7 +17,21 @@ import type { MatchConfig, Player, Tab } from '../types'
 
 type BetFilter = 'all' | 'low' | 'mid' | 'high'
 type RoundsFilter = 'all' | number
-type SortBy = 'online' | 'stake' | 'rating' | 'rounds'
+
+/*
+ * Сортировка списка.
+ *
+ * «Онлайн» отсюда убран. В списке открытых боёв все и так у экрана — бой
+ * держится в нём ровно потому, что кто-то его ждёт. Сортировать по признаку,
+ * который одинаков у всех, — значит занимать место кнопкой, которая ничего
+ * не делает.
+ *
+ * У оставшихся трёх есть направление. Одно нажатие — от большего к меньшему,
+ * второе по той же кнопке — наоборот. Человек, ищущий ставку по карману,
+ * искал именно это: раньше список умел показывать только самых дорогих.
+ */
+type SortBy = 'stake' | 'rating' | 'rounds'
+type SortDir = 'desc' | 'asc'
 
 export function OpponentsScreen({
   initialTab,
@@ -41,7 +55,8 @@ export function OpponentsScreen({
   const [tab, setTab] = useState<Tab>(initialTab)
   const [betFilter, setBetFilter] = useState<BetFilter>('all')
   const [roundsFilter, setRoundsFilter] = useState<RoundsFilter>('all')
-  const [sortBy, setSortBy] = useState<SortBy>('online')
+  const [sortBy, setSortBy] = useState<SortBy>('stake')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [query, setQuery] = useState('')
   const [inviteFriend, setInviteFriend] = useState<Player | null>(null)
   const [challengeFriend, setChallengeFriend] = useState<Player | null>(null)
@@ -95,12 +110,23 @@ export function OpponentsScreen({
       .filter((p) => roundsFilter === 'all' || p.rounds === roundsFilter)
       .filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
       .sort((a, b) => {
-        if (sortBy === 'stake') return b.bet - a.bet
-        if (sortBy === 'rating') return b.rating - a.rating
-        if (sortBy === 'rounds') return b.rounds - a.rounds
-        return (b.online ? 1 : 0) - (a.online ? 1 : 0)
+        const of = (p: Player): number =>
+          sortBy === 'stake' ? p.bet : sortBy === 'rating' ? p.rating : p.rounds
+        const diff = of(a) - of(b)
+        return sortDir === 'desc' ? -diff : diff
       })
-  }, [tab, betFilter, roundsFilter, query, sortBy, open.live, open.players])
+  }, [tab, betFilter, roundsFilter, query, sortBy, sortDir, open.live, open.players])
+
+  /** Та же кнопка второй раз — тот же признак, обратный порядок. */
+  const toggleSort = (key: SortBy) => {
+    hapticSelection()
+    if (key === sortBy) {
+      setSortDir((dir) => (dir === 'desc' ? 'asc' : 'desc'))
+      return
+    }
+    setSortBy(key)
+    setSortDir('desc')
+  }
 
   /**
    * Условие пари доступно только в игре с друзьями (ЧАСТЬ 2, п.11),
@@ -133,7 +159,6 @@ export function OpponentsScreen({
   ]
 
   const sortChips: { key: SortBy; label: string }[] = [
-    { key: 'online', label: t('opponents.sort.online') },
     { key: 'stake', label: t('opponents.sort.stake') },
     { key: 'rating', label: t('opponents.sort.rating') },
     { key: 'rounds', label: t('opponents.sort.rounds') },
@@ -248,22 +273,27 @@ export function OpponentsScreen({
         </div>
 
         {/* Правка 11: непонятный фильтр «1500+ pts» убран */}
-        <div className="flex gap-1.5 overflow-x-auto">
+        <div className="flex gap-1.5 overflow-x-auto items-center">
+          <span className="text-tg-subtext/70 text-[11px] flex-shrink-0 pr-0.5">
+            {t('opponents.sort.label')}
+          </span>
           {sortChips.map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => {
-                hapticSelection()
-                setSortBy(key)
-              }}
+              onClick={() => toggleSort(key)}
               className="tappable flex-shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-all duration-150"
               style={{
                 background: sortBy === key ? 'rgba(42,159,214,0.2)' : 'var(--tg-fill)',
                 color: sortBy === key ? 'var(--tg-blue-light)' : 'var(--tg-subtext)',
               }}
+              aria-label={sortBy === key ? `${label}: ${sortDir === 'desc' ? '↓' : '↑'}` : label}
             >
-              {sortBy === key ? '↓ ' : ''}
               {label}
+              {/*
+                Стрелка стоит после названия и есть только у выбранного:
+                так видно и по какому признаку список, и в какую сторону.
+              */}
+              {sortBy === key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
             </button>
           ))}
         </div>

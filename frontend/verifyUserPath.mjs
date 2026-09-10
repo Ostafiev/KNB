@@ -144,7 +144,9 @@ await scenario('Первый вход: согласие, имя, главная'
   await page.waitForTimeout(800)
   const after = await input.inputValue()
   check(after !== before && after.length >= 2, 'ник подставился и отличается от имени', `${before} → ${after}`)
-  check(/^[A-Za-z][A-Za-z0-9_]*$/.test(after), 'ник в общем стиле, без пробелов', after)
+  // Ник бывает и латиницей (`nik99`), и коротким русским именем («Макс»).
+  // Общее у них одно: это подпись, а не паспортные данные — без пробелов и точек.
+  check(/^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9_]*$/.test(after), 'ник в общем стиле, без пробелов', after)
 
   await byText(page, 'Готово').click()
   await page.waitForTimeout(900)
@@ -350,6 +352,189 @@ await scenario('Друг открывает ссылку позже: обоих 
   )
 
   await guest.context.close()
+})
+
+// ─── 6. Итоги чужого матча ───────────────────────────────────────────────────
+
+/*
+ * Самый неприятный из багов, и его труднее всего заметить руками.
+ *
+ * Человек доигрывал бой, нажимал «в главное меню» — и тут же получал экран
+ * итогов: счёт 0:0, «ничья», слева пустое место вместо имени соперника. Или
+ * писал условие пари, нажимал «позвать в игру» — и вместо ожидания видел
+ * «матч завершён, поражение», хотя ставку никто не списывал.
+ *
+ * Причина одна на оба случая: последнее событие сервера оставалось лежать
+ * непрочитанным, и приложение зачитывало его повторно на каждой смене матча.
+ * Экран был настоящий, данные — от боя, которого не было.
+ *
+ * Сценарий проходит ровно этот путь: доиграть, выйти, позвать друга.
+ */
+await scenario('После боя не открываются чужие итоги', async () => {
+  const { context, page } = await openApp(browser)
+  await passOnboarding(page)
+
+  await byText(page, 'Играть').click()
+  await page.waitForTimeout(900)
+
+  // Бой в один раунд — чтобы дойти до итогов за один ход.
+  const short = page.locator('button').filter({ hasText: /\b1\s+раунд/ })
+  const rows = (await short.count()) > 0 ? short : page.locator('button').filter({ hasText: /\d+\s+раунд/ })
+  check((await rows.count()) > 0, 'есть во что сыграть', `строк: ${await rows.count()}`)
+  await rows.first().click()
+
+  await page.locator('text=Раунд 1/').first().waitFor({ timeout: 15_000 }).catch(() => {})
+  // Вступление «Старт» держит кнопки ещё полторы секунды.
+  await page.waitForTimeout(2200)
+  await byText(page, 'Камень').click()
+
+  await page.locator('text=Итоги матча').first().waitFor({ timeout: 25_000 }).catch(() => {})
+  const atSummary = await byText(page, 'Итоги матча').isVisible().catch(() => false)
+  check(atSummary, 'бой доигран, показаны итоги')
+
+  if (atSummary) {
+    /*
+     * Объявление исхода — крупным словом, как «Старт» перед боем. Занавес
+     * ничего не перехватывает, но дождёмся, пока он растает: иначе проверка
+     * прочитает слово с занавеса, а не с табло.
+     */
+    await page.waitForTimeout(1800)
+
+    await byText(page, 'В главное меню').click()
+    await page.waitForTimeout(3000)
+
+    check(
+      await byText(page, 'Позвать в игру').isVisible().catch(() => false),
+      '«в главное меню» приводит на главную',
+    )
+    check(
+      !(await byText(page, 'Итоги матча').isVisible().catch(() => false)),
+      'итоги не открываются второй раз сами по себе',
+    )
+
+    // И то же самое на другом пути: приглашение друга после сыгранного боя.
+    await page.route('https://t.me/**', (route) => route.abort())
+    await byText(page, 'Позвать в игру').click()
+    await page.waitForTimeout(700)
+    const condition = page.locator('input, textarea').last()
+    if (await condition.isVisible().catch(() => false)) {
+      await condition.fill('кто проиграл — моет посуду')
+    }
+    await byText(page, 'Отправить другу в Telegram').click()
+    await page.waitForTimeout(3000)
+
+    check(
+      await byText(page, 'Ждём друга').isVisible().catch(() => false),
+      'после «позвать в игру» открывается ожидание',
+    )
+    check(
+      !(await byText(page, 'Итоги матча').isVisible().catch(() => false)),
+      'приглашение не превращается в итоги прошлого боя',
+    )
+  }
+
+  await context.close()
+})
+
+// ─── 7. Мелочи, которые видно только глазами ─────────────────────────────────
+
+await scenario('Список соперников: сортировка в обе стороны', async () => {
+  const { context, page } = await openApp(browser)
+  await passOnboarding(page)
+
+  await byText(page, 'Играть').click()
+  await page.waitForTimeout(900)
+
+  check(
+    !(await byText(page, 'Онлайн').isVisible().catch(() => false)),
+    'сортировки «онлайн» больше нет — в списке все и так у экрана',
+  )
+
+  /** Ставки строк списка сверху вниз. */
+  const stakes = async () => {
+    const rows = page.locator('button').filter({ hasText: /\d+\s+раунд/ })
+    const texts = await rows.allInnerTexts()
+    return texts
+      .map((text) => Number((text.match(/(\d+)\s*$/) ?? [])[1]))
+      .filter((value) => Number.isFinite(value))
+  }
+
+  const sortButton = page.getByRole('button', { name: /^Ставка/ }).first()
+
+  const opening = await stakes()
+  check(opening.length > 1, 'в списке есть что сортировать', opening.slice(0, 6))
+  check(
+    opening.every((value, i) => i === 0 || opening[i - 1] >= value),
+    'список открывается от большей ставки к меньшей',
+    opening.slice(0, 8),
+  )
+
+  await sortButton.click()
+  await page.waitForTimeout(800)
+  const asc = await stakes()
+  check(
+    asc.length > 1 && asc.every((value, i) => i === 0 || asc[i - 1] <= value),
+    'нажатие на «Ставка» разворачивает порядок — от меньшей к большей',
+    asc.slice(0, 8),
+  )
+
+  await sortButton.click()
+  await page.waitForTimeout(800)
+  const back = await stakes()
+  check(
+    back.length > 1 && back.every((value, i) => i === 0 || back[i - 1] >= value),
+    'ещё одно нажатие возвращает как было',
+    back.slice(0, 8),
+  )
+
+  // И то же самое у соседней кнопки: направление не должно быть только у ставки.
+  const byRating = page.getByRole('button', { name: /^Рейтинг/ }).first()
+  await byRating.click()
+  await page.waitForTimeout(700)
+  check(
+    await page.getByRole('button', { name: 'Рейтинг: ↓' }).first().isVisible().catch(() => false),
+    'у выбранной сортировки видно направление стрелкой',
+  )
+  await byRating.click()
+  await page.waitForTimeout(700)
+  check(
+    await page.getByRole('button', { name: 'Рейтинг: ↑' }).first().isVisible().catch(() => false),
+    'стрелка переворачивается вместе с порядком',
+  )
+
+  await context.close()
+})
+
+await scenario('Ставку видно, что можно вписать своей рукой', async () => {
+  const { context, page } = await openApp(browser)
+  await passOnboarding(page)
+
+  await byText(page, 'Играть').click()
+  await page.waitForTimeout(700)
+  await byText(page, 'Создать свой бой').click()
+  await page.waitForTimeout(700)
+
+  check(
+    await page.locator('text=впиши любую ставку').first().isVisible().catch(() => false),
+    'под ставкой написано, что число можно вписать',
+  )
+
+  const field = page.locator('input[type=number]').first()
+  check(await field.isVisible().catch(() => false), 'ставка — настоящее поле ввода')
+  await field.fill('275')
+  await field.blur()
+  await page.waitForTimeout(400)
+  check(await field.inputValue() === '275', 'вписанное число принимается', await field.inputValue())
+
+  // И «назад» возвращает туда, откуда пришли, а не на главную.
+  await page.getByRole('button', { name: 'Назад' }).first().click().catch(() => {})
+  await page.waitForTimeout(800)
+  check(
+    await byText(page, 'Создать свой бой').isVisible().catch(() => false),
+    '«назад» из создания боя возвращает к списку соперников',
+  )
+
+  await context.close()
 })
 
 await browser.close()

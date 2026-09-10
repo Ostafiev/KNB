@@ -11,13 +11,23 @@ import type { MatchConfig, MatchMode } from '../types'
 export function CreateScreen({
   onCreate,
   onBack,
+  onHome,
 }: {
   onCreate: (config: MatchConfig, options?: { share?: boolean }) => void
+  /** Стрелка «‹» — шаг назад по пути человека: на главную или к списку боёв. */
   onBack: () => void
+  /**
+   * Домик в шапке — всегда на главную.
+   *
+   * Раньше сюда подставлялась та же обработка, что и на стрелку, и это было
+   * незаметно ровно до тех пор, пока «назад» вело туда же. Теперь стрелка
+   * возвращает к списку соперников, и домик, ведущий к списку, был бы обманом.
+   */
+  onHome?: () => void
 }) {
   const t = useT()
   const { lang } = useI18n()
-  const { topBar, menu } = useAppChrome({ onHome: onBack })
+  const { topBar, menu } = useAppChrome({ onHome: onHome ?? onBack })
   const [mode, setMode] = useState<MatchMode>('random')
   const [bet, setBet] = useState(100)
   const [rounds, setRounds] = useState(3)

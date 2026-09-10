@@ -77,6 +77,8 @@ export default function App() {
 
   const [screen, setScreen] = useState<Screen>('splash')
   const [opponentsTab, setOpponentsTab] = useState<Tab>('random')
+  /** Откуда пришли в создание боя — туда и вернёт «назад». */
+  const [createFrom, setCreateFrom] = useState<Screen>('home')
   const [match, setMatch] = useState<MatchConfig>(EMPTY_MATCH)
   const [rounds, setRounds] = useState<RoundResult[]>([])
   const [score, setScore] = useState({ player: 0, opponent: 0 })
@@ -134,16 +136,43 @@ export default function App() {
   const liveConfig = live.match ? configFromServer(live.match) : null
   const liveRounds = useMemo(() => (live.match ? roundsFromServer(live.match) : []), [live.match])
 
+  /*
+   * Свежий доступ к живому матчу без подписки на него.
+   *
+   * Это ключ ко всей истории с чужими итогами. Раньше переход по событию
+   * сервера был подписан и на сам матч: `live.match?.bet` стоял в зависимостях.
+   * Стоило матчу смениться — а он меняется после каждого нажатия «в главное
+   * меню» и после каждого нового боя, — как эффект запускался заново, читал
+   * ТОТ ЖЕ старый сигнал и уводил на итоги ещё раз. Человек видел табло чужого
+   * матча со счётом 0:0: экран настоящий, данные — от боя, которого не было.
+   *
+   * Через ссылку эффект читает последнее состояние, но не просыпается от его
+   * изменений. Просыпается он теперь ровно от одного — от нового сигнала.
+   */
+  const liveRef = useRef(live)
+  liveRef.current = live
+
   /** Переходы между экранами по событиям сервера. */
   useEffect(() => {
     if (!liveOn || !live.signal) return
 
+    const current = liveRef.current.match
+    /*
+     * Вторая застава: сигнал сверяется с тем матчем, что сейчас на руках.
+     * «Бой закончен» показывает итоги только если бой и правда закончен;
+     * «бой начался» уводит в арену только если есть незаконченный бой.
+     * Сигнал из прошлой жизни не подойдёт ни под одно из условий.
+     */
+    const inPlay = current !== null && !current.finished
+
     switch (live.signal.kind) {
       case 'match_found':
+        if (!inPlay) return
         setInviteLink(null)
         go('battle')
         return
       case 'round_result': {
+        if (!inPlay) return
         /*
          * Небольшая задержка: за неё в бою успевает пройти замах — руки
          * сходятся на счёт «три», и только потом открываются фигуры.
@@ -153,22 +182,36 @@ export default function App() {
         return () => clearTimeout(timer)
       }
       case 'round_started':
+        if (!inPlay) return
         go('battle')
         return
       case 'match_finished':
+        if (current === null || !current.finished) return
         setInviteLink(null)
         go('summary')
         return
       case 'error':
         if (live.signal.code === 'insufficient_funds') {
-          setInsufficientFor(live.match?.bet ?? ECONOMY.MIN_BET)
+          setInsufficientFor(current?.bet ?? ECONOMY.MIN_BET)
           go('home')
           return
         }
         setLiveError(live.signal.message ?? 'Что-то пошло не так')
         return
     }
-  }, [live.signal, liveOn, live.match?.bet, go])
+    // Зависимость одна и намеренно: новый сигнал — новый переход, и только.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live.signal, liveOn, go])
+
+  /*
+   * Третья застава — на случай, если итоги всё-таки открылись без матча.
+   * Пустое табло с прочерком вместо имени — это не «нет данных», это сбой,
+   * и правильный ответ на него — вернуть человека на главную, а не показывать.
+   */
+  useEffect(() => {
+    if (screen !== 'summary' || !liveOn) return
+    if (liveRef.current.match === null) go('home')
+  }, [screen, liveOn, go])
 
   /*
    * Приглашение отправляется обычной ссылкой, а не командой Telegram.
@@ -244,6 +287,18 @@ export default function App() {
       // Человек шёл звать друга — значит, на экране ожидания главным должно
       // быть «выбрать друга», а не ссылка и не отмена.
       setInviteIntent(Boolean(options.share))
+
+      /*
+       * Первая застава: новый бой начинается с чистого листа.
+       *
+       * Прошлый матч и его последнее событие остаются в памяти до тех пор,
+       * пока их не убрать. Именно так рождался самый неприятный из багов:
+       * человек писал условие пари, нажимал «позвать в игру» — и вместо
+       * экрана ожидания получал итоги: «поражение, 0:0», хотя ставку никто
+       * не списывал и боя не было. Итоги были настоящие, только от прошлого
+       * боя: сигнал о его конце ещё лежал непрочитанным.
+       */
+      if (liveOn) live.reset()
 
       settled.current = false
       setMatch(config)
@@ -507,7 +562,10 @@ export default function App() {
         {screen === 'home' && (
           <HomeScreen
             onOpponents={openOpponents}
-            onCreate={() => go('create')}
+            onCreate={() => {
+              setCreateFrom('home')
+              go('create')
+            }}
             onStartMatch={startMatch}
             onResumeInvite={resumeInvite}
           />
@@ -518,12 +576,27 @@ export default function App() {
             initialTab={opponentsTab}
             onSelect={startMatch}
             onJoinOpen={joinOpenMatch}
-            onCreate={() => go('create')}
+            onCreate={() => {
+              setCreateFrom('opponents')
+              go('create')
+            }}
             onBack={() => go('home')}
           />
         )}
 
-        {screen === 'create' && <CreateScreen onCreate={startMatch} onBack={() => go('home')} />}
+        {/*
+          «Назад» возвращает туда, откуда пришли.
+          Из списка соперников человек заходит сюда посмотреть свои условия —
+          и ждёт, что вернётся к списку, а не окажется на главной, откуда до
+          списка ещё два нажатия.
+        */}
+        {screen === 'create' && (
+          <CreateScreen
+            onCreate={startMatch}
+            onBack={() => go(createFrom)}
+            onHome={() => go('home')}
+          />
+        )}
 
         {screen === 'waiting' && (
           <WaitingScreen

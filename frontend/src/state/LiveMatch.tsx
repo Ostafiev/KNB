@@ -335,6 +335,7 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
     matchIdRef.current = null
     setMyChoice(null)
     setOpponentMoved(false)
+    setSignal(null)
     matchSocket.send({ type: 'queue', bet, rounds })
   }, [])
 
@@ -344,6 +345,8 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const createInvite = useCallback<LiveMatchValue['createInvite']>(async (input) => {
+    // Новое приглашение — новая история: старое событие сюда не тянем.
+    setSignal(null)
     const result = await api.createMatch({ mode: 'friend', ...input })
     setMatch(result.match)
     matchIdRef.current = result.match.id
@@ -405,6 +408,15 @@ export function LiveMatchProvider({ children }: { children: React.ReactNode }) {
     setRoundEndsAt(null)
     setMyChoice(null)
     setOpponentMoved(false)
+    /*
+     * Последнее событие тоже забываем.
+     *
+     * Сигнал — это «только что случилось вот это», а не «последнее, что
+     * случилось». Пока он лежал непрочитанным после конца боя, любая
+     * перерисовка могла зачитать его повторно и увести на итоги давно
+     * законченного матча. Забыли матч — забываем и весть о нём.
+     */
+    setSignal(null)
   }, [])
 
   const value = useMemo<LiveMatchValue>(

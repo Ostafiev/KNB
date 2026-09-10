@@ -33,11 +33,18 @@ export interface BotSettings {
 }
 
 const DEFAULTS: BotSettings = {
+  /*
+   * Сколько открытых боёв держим в списке.
+   *
+   * Восьми хватало, чтобы найти бой, но список из восьми строк читается как
+   * пустая площадка: видно, что играть почти некому. Тридцати с лишним хватает,
+   * чтобы экран выглядел живым и чтобы в нём нашлись все сочетания «ставка ×
+   * раунды», какие человек может выбрать, — причём не по одному разу.
+   *
+   * Открытый бой ничего не стоит: ставка не удерживается, пока никто не вошёл.
+   */
   enabled: true,
-  // Восьми хватает, чтобы в списке нашлись разные ставки и разное число
-  // раундов. Трёх не хватало: человек выбирал свои условия и не совпадал
-  // ни с одним боем, а значит просто ждал.
-  openMatches: 8,
+  openMatches: 36,
   minBet: 25,
   maxBet: 100,
   moveMinMs: 1500,
@@ -73,6 +80,16 @@ const BOT_FLOAT_LOW = 1000
 
 function pick<T>(list: T[]): T {
   return list[randomInt(list.length)]
+}
+
+/** Перемешивание Фишера — Йетса. Нужно, чтобы список не был всегда одним и тем же. */
+function shuffle<T>(list: T[]): T[] {
+  const copy = [...list]
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1)
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
 }
 
 export interface BotRow {
@@ -237,7 +254,14 @@ export async function topUpOpenMatches(settings: BotSettings): Promise<number> {
       WHERE u.is_bot = TRUE AND m.status IN ('searching', 'active')`,
   )
   const busyIds = new Set(busy.map((row) => row.id))
-  const free = bots.filter((bot) => !busyIds.has(bot.id))
+  /*
+   * Порядок перемешиваем.
+   *
+   * Без этого свободные боты разбираются по возрастанию идентификатора, и
+   * список всегда открывают одни и те же несколько имён. Человек, заглянувший
+   * дважды за вечер, видел бы тот же состав — верный признак декорации.
+   */
+  const free = shuffle(bots.filter((bot) => !busyIds.has(bot.id)))
 
   /*
    * Открываем не что попало, а то, чего в списке не хватает.
@@ -246,7 +270,7 @@ export async function topUpOpenMatches(settings: BotSettings): Promise<number> {
    * открытых боях список почти никогда не совпадал с тем, что выбрал
    * человек, — и «Найти бой» превращалось в ожидание. Теперь сначала
    * закрываем пустые сочетания из тех, что предлагает само приложение,
-   * и только потом добираем случайными.
+   * и только потом добираем повторами тех же сочетаний.
    */
   const existing = await query<{ bet_amount: string; rounds_total: number }>(
     `SELECT m.bet_amount::text, m.rounds_total
@@ -256,21 +280,32 @@ export async function topUpOpenMatches(settings: BotSettings): Promise<number> {
   )
   const covered = new Set(existing.map((r) => `${Number(r.bet_amount)}:${r.rounds_total}`))
 
-  const wanted: { bet: number; rounds: number }[] = []
+  /** Все сочетания, которые человек вообще может выбрать в приложении. */
+  const grid: { bet: number; rounds: number }[] = []
   for (const rounds of ROUNDS) {
     for (const bet of BET_PRESETS) {
       if (bet < settings.minBet || bet > settings.maxBet) continue
-      if (covered.has(`${bet}:${rounds}`)) continue
-      wanted.push({ bet, rounds })
+      grid.push({ bet, rounds })
     }
   }
+  const wanted = grid.filter((combo) => !covered.has(`${combo.bet}:${combo.rounds}`))
 
   let created = 0
   for (let index = 0; index < missing && index < free.length; index += 1) {
-    const combo = wanted[index] ?? {
-      bet: randomBet(settings.minBet, settings.maxBet),
-      rounds: pick(ROUNDS),
-    }
+    /*
+     * Сначала непокрытые сочетания, потом — по второму кругу те же.
+     *
+     * Повтор здесь не изъян, а правда жизни: на популярной ставке ждут
+     * соперника сразу несколько человек. Случайную ставку в добор больше не
+     * берём — бой на 175 медяков не совпадёт ни с чьим выбором, потому что
+     * такой кнопки в приложении нет.
+     */
+    const combo =
+      wanted[index] ??
+      grid[(index - wanted.length) % Math.max(1, grid.length)] ?? {
+        bet: randomBet(settings.minBet, settings.maxBet),
+        rounds: pick(ROUNDS),
+      }
     try {
       await createMatch({
         mode: 'random',
@@ -374,6 +409,46 @@ let onMatchStarted: StartedHandler | null = null
 
 export function setMatchStartAnnouncer(handler: StartedHandler): void {
   onMatchStarted = handler
+}
+
+/**
+ * Люди приходят и уходят.
+ *
+ * Список из тридцати боёв, который не меняется, — это не толпа, это витрина.
+ * Живой список опознаётся не количеством, а движением: одни строки исчезают,
+ * появляются другие, с другими именами. Поэтому на каждом круге небольшая
+ * часть боёв снимается — как будто человек передумал ждать и закрыл игру, —
+ * а следом topUpOpenMatches открывает столько же новых, уже другими ботами.
+ *
+ * Снимаем только те, что провисели не меньше минуты: иначе бой мог бы
+ * исчезнуть под пальцем у того, кто как раз до него дотянулся.
+ */
+const CHURN_MIN_AGE_SEC = 60
+
+export async function churnOpenMatches(settings: BotSettings): Promise<number> {
+  if (!settings.enabled) return 0
+
+  // Примерно десятая часть за круг: за несколько минут состав обновляется
+  // целиком, но список при этом ни на секунду не пустеет.
+  const count = Math.max(1, Math.round(settings.openMatches * 0.1))
+
+  const rows = await query<{ id: number }>(
+    `UPDATE matches m
+        SET status = 'cancelled', finished_at = now()
+      WHERE m.id IN (
+        SELECT m2.id
+          FROM matches m2
+          JOIN users u2 ON u2.id = m2.player1_id
+         WHERE u2.is_bot = TRUE
+           AND m2.status = 'searching'
+           AND m2.player2_id IS NULL
+           AND m2.created_at < now() - ($1::int * INTERVAL '1 second')
+         ORDER BY random()
+         LIMIT $2)
+      RETURNING m.id`,
+    [CHURN_MIN_AGE_SEC, count],
+  )
+  return rows.length
 }
 
 /** Убирает засидевшиеся заявки ботов, чтобы список не выглядел застывшим. */

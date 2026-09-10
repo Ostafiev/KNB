@@ -18,7 +18,12 @@ import { buildServer } from '../server.js'
 import { closePool, query, queryOne } from '../db/client.js'
 import { closeRedis } from '../lib/redis.js'
 import { randomNickname } from '../domain/nicknames.js'
-import { ensureBots } from '../domain/bots.js'
+import {
+  churnOpenMatches,
+  ensureBots,
+  getBotSettings,
+  topUpOpenMatches,
+} from '../domain/bots.js'
 
 let passed = 0
 let failed = 0
@@ -48,27 +53,83 @@ async function main(): Promise<void> {
 
   const sample = Array.from({ length: 200 }, () => randomNickname())
   check(
-    sample.every((nick) => /^[A-Za-z][A-Za-z0-9_]{1,23}$/.test(nick)),
-    'ник — латиница, цифры и подчёркивание, без пробелов',
+    sample.every((nick) => /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9_]{1,23}$/.test(nick)),
+    'ник — буквы, цифры и подчёркивание, без пробелов',
     sample.slice(0, 5),
   )
   check(
     sample.every((nick) => !nick.includes('.')),
     'без инициалов с точкой — так в сети не подписываются',
   )
+
+  /*
+   * Список из одной только латиницы читался так же однообразно, как читались
+   * «Максим Б.»: сразу видно один генератор. Живые люди подписываются
+   * по-разному, поэтому проверяем, что в списке есть и то, и другое.
+   */
+  const cyrillic = sample.filter((nick) => /[А-Яа-яЁё]/.test(nick))
+  const latin = sample.filter((nick) => /^[A-Za-z]/.test(nick))
   check(
-    new Set(sample).size > sample.length * 0.6,
+    cyrillic.length >= 30 && latin.length >= 60,
+    'в списке вперемешку русские имена и ники латиницей',
+    `${cyrillic.length} русских, ${latin.length} латиницей из ${sample.length}`,
+  )
+  check(
+    new Set(sample).size > sample.length * 0.5,
     'ники не повторяются толпой: генератор даёт разнообразие',
     `${new Set(sample).size} разных из ${sample.length}`,
   )
 
-  const bots = await ensureBots(12)
-  check(bots.length >= 12, 'ботов теперь хватает на несколько боёв сразу', bots.length)
+  const bots = await ensureBots(30)
+  check(bots.length >= 30, 'ботов хватает на людный список', bots.length)
   check(
-    bots.every((bot) => !bot.nickname.includes(' ')),
+    bots.every((bot) => !bot.nickname.includes(' ') && !bot.nickname.includes('.')),
     'у ботов ники того же вида, что предлагаются игрокам',
     bots.slice(0, 4).map((b) => b.nickname),
   )
+
+  console.log('\nСписок боёв')
+
+  const settings = await getBotSettings()
+  check(settings.openMatches >= 30, 'в настройках заказан людный список', settings.openMatches)
+
+  await topUpOpenMatches(settings)
+
+  const lobby = await query<{ bet_amount: string; rounds_total: number }>(
+    `SELECT m.bet_amount::text, m.rounds_total
+       FROM matches m
+       JOIN users u ON u.id = m.player1_id
+      WHERE m.status = 'searching' AND m.player2_id IS NULL AND u.is_bot = TRUE`,
+  )
+  check(
+    lobby.length >= Math.min(settings.openMatches, 30),
+    'открытых боёв столько, сколько заказано',
+    lobby.length,
+  )
+
+  /*
+   * Ставка обязана быть той, которую человек может нажать. Бой на 175 медяков
+   * не совпадёт ни с чьим выбором — такой кнопки в приложении нет, и строка
+   * в списке становится украшением, а не боем.
+   */
+  const PRESETS = new Set([25, 50, 100, 250, 500])
+  check(
+    lobby.every((row) => PRESETS.has(Number(row.bet_amount))),
+    'ставки в списке — только те, что можно выбрать в приложении',
+    [...new Set(lobby.map((r) => Number(r.bet_amount)))].sort((a, b) => a - b),
+  )
+  check(
+    new Set(lobby.map((r) => r.rounds_total)).size >= 3,
+    'раунды в списке разные, а не один вариант на всех',
+    [...new Set(lobby.map((r) => r.rounds_total))],
+  )
+
+  /*
+   * Ротация не должна убирать бой из-под пальца. Все бои сейчас свежие —
+   * значит, не тронуть должна ни одного.
+   */
+  const churned = await churnOpenMatches(settings)
+  check(churned === 0, 'только что открытые бои не исчезают под рукой', churned)
 
   console.log('\nПодбор соперника')
 

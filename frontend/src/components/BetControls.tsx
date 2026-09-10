@@ -50,28 +50,52 @@ export function BetSlider({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Ручной ввод числа — он же индикатор текущего значения */}
-      <div className="flex items-center justify-center gap-3 min-h-12">
-        {isFree ? (
-          <span className={`font-black text-tg-green ${compact ? 'text-2xl' : 'text-3xl'}`}>
-            {t('bet.free')}
-          </span>
-        ) : (
-          <>
-            <span className={compact ? 'text-2xl' : 'text-3xl'}>🪙</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={draft}
-              min={min}
-              max={ECONOMY.MAX_BET}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commitDraft}
-              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-              className={`bg-transparent text-tg-yellow font-black text-center outline-none ${compact ? 'text-3xl w-24' : 'text-4xl w-32'}`}
-              aria-label={t('common.bet')}
-            />
-          </>
+      {/*
+        Ручной ввод числа — он же индикатор текущего значения.
+
+        Раньше это было просто крупное жёлтое число посреди экрана, и никто
+        не догадывался, что по нему можно нажать: число на витрине выглядит как
+        показание прибора, а не как поле. Теперь у него рамка, карандаш и
+        подпись — три подсказки, каждая из которых говорит одно: сюда можно
+        вписать своё.
+      */}
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="flex items-center justify-center min-h-12">
+          {isFree ? (
+            <span className={`font-black text-tg-green ${compact ? 'text-2xl' : 'text-3xl'}`}>
+              {t('bet.free')}
+            </span>
+          ) : (
+            <label
+              className="flex items-center gap-2 rounded-2xl px-4 py-1.5 cursor-text"
+              style={{
+                background: 'var(--tg-fill)',
+                border: '1px dashed var(--tg-yellow)',
+              }}
+            >
+              <span className={compact ? 'text-xl' : 'text-2xl'}>🪙</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={draft}
+                min={min}
+                max={ECONOMY.MAX_BET}
+                onChange={(e) => setDraft(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onBlur={commitDraft}
+                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                className={`bg-transparent text-tg-yellow font-black text-center outline-none ${compact ? 'text-2xl w-20' : 'text-3xl w-24'}`}
+                aria-label={t('common.bet')}
+              />
+              <span className={`opacity-60 ${compact ? 'text-sm' : 'text-base'}`}>✏️</span>
+            </label>
+          )}
+        </div>
+
+        {!isFree && (
+          <p className="text-tg-subtext/80 text-[11px] text-center leading-snug">
+            {t('bet.custom.hint', { min, max: ECONOMY.MAX_BET })}
+          </p>
         )}
       </div>
 

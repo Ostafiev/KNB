@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { getEconomyConfig } from '../domain/appConfig.js'
 import {
   chooseFigure,
+  churnOpenMatches,
   getBotSettings,
   isKnownBot,
   refreshBotIds,
@@ -103,6 +104,11 @@ async function tick(app: FastifyInstance): Promise<void> {
     if (!settings.enabled) return
 
     await refreshStaleMatches()
+
+    // Часть боёв уходит, столько же приходит — список должен шевелиться.
+    const left = await churnOpenMatches(settings)
+    if (left > 0) app.log.debug(`боты закрыли боёв: ${left}`)
+
     const created = await topUpOpenMatches(settings)
     if (created > 0) app.log.debug(`боты открыли боёв: ${created}`)
   } catch (error) {
