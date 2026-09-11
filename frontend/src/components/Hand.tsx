@@ -42,7 +42,25 @@ export function Hand({
         transform: side === 'left' ? 'scaleX(-1)' : undefined,
       }}
     >
-      <span className={className} style={{ display: 'inline-block', ...style }}>
+      <span
+        className={className}
+        style={{
+          display: 'inline-block',
+          /*
+           * Ось вращения — запястье, а не середина ладони.
+           *
+           * Эмодзи развёрнут на 90° влево, поэтому запястье оказывается у
+           * правого края. Замах вокруг центра выглядел кувырком: кисть
+           * уезжала вбок вместе с костяшками. Вокруг запястья это тот самый
+           * жест на счёт «раз-два-три».
+           *
+           * Значение одно на обе руки: левую целиком отражает внешний слой,
+           * и «право» в её собственных координатах — это «лево» на экране.
+           */
+          transformOrigin: '78% 50%',
+          ...style,
+        }}
+      >
         <span style={{ display: 'inline-block', transform: 'rotate(-90deg)' }}>
           {HAND_EMOJI[choice]}
         </span>

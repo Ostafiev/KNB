@@ -31,8 +31,14 @@ export function ResultScreen({
   const t = useT()
   const [showResult, setShowResult] = useState(false)
 
+  /*
+   * Слово «победа» ждёт, пока руки столкнутся, — но ровно столько, сколько
+   * идёт само столкновение. Раньше оно ждало восемьсот миллисекунд, а экран
+   * результата жил меньше двух секунд: на чтение оставалось меньше секунды,
+   * и половину раунда человек смотрел на уже случившееся.
+   */
   useEffect(() => {
-    const timer = setTimeout(() => setShowResult(true), 800)
+    const timer = setTimeout(() => setShowResult(true), 320)
     return () => clearTimeout(timer)
   }, [])
 

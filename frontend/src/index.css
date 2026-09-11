@@ -269,20 +269,30 @@ body {
 }
 
 /*
- * Замах перед раскрытием фигур.
+ * Замах перед раскрытием фигур: «раз-два-три».
  *
- * Играет тогда же, когда в жизни: оба игрока уже решили, и руки идут на счёт
- * «раз-два-три». Раньше тряска шла в начале раунда, пока человек ещё выбирал,
- * и была резкой — теперь три спокойных замаха и остановка.
+ * Движение крутится вокруг запястья — за это отвечает transform-origin
+ * в самом компоненте руки. Вокруг середины ладони, как было раньше, рука
+ * не замахивалась, а кувыркалась: кисть уезжала вбок, костяшки вниз, и
+ * читалось это как сбой картинки, а не как жест.
+ *
+ * Главное здесь — вертикаль. В жизни рука идёт вверх-вниз, а поворот только
+ * сопровождает её на несколько градусов. Прежние восемнадцать градусов плюс
+ * подрагивание масштаба давали ту самую «кривизну»: рука одновременно
+ * вращалась, прыгала и меняла размер.
+ *
+ * Заканчивается в исходной точке, а не выше и крупнее: следом открываются
+ * фигуры, и рука не должна перед этим уползать с места.
  */
 @keyframes shake-final {
-  0%   { transform: rotate(0deg) translateY(0) scale(1); }
-  16%  { transform: rotate(-18deg) translateY(-12px) scale(1.04); }
-  33%  { transform: rotate(6deg) translateY(6px) scale(1); }
-  50%  { transform: rotate(-16deg) translateY(-10px) scale(1.04); }
-  66%  { transform: rotate(6deg) translateY(6px) scale(1); }
-  83%  { transform: rotate(-14deg) translateY(-8px) scale(1.05); }
-  100% { transform: rotate(0deg) translateY(6px) scale(1.08); }
+  0%   { transform: translateY(0) rotate(0deg); }
+  15%  { transform: translateY(-18px) rotate(13deg); }
+  30%  { transform: translateY(2px) rotate(-3deg); }
+  45%  { transform: translateY(-15px) rotate(11deg); }
+  60%  { transform: translateY(2px) rotate(-3deg); }
+  75%  { transform: translateY(-13px) rotate(9deg); }
+  90%  { transform: translateY(1px) rotate(-2deg); }
+  100% { transform: translateY(0) rotate(0deg); }
 }
 
 /*
@@ -304,11 +314,13 @@ body {
  * Победа или поражение в конце боя — крупным словом, как «Старт» перед ним.
  * Бой начинается объявлением и заканчивается объявлением: без второго итоги
  * просто «появлялись», и момент, ради которого играли, проходил незамеченным.
+ *
+ * Появляется сразу и целиком, а тает — плавно. Проявляться ему незачем:
+ * пока он проявлялся, сквозь него было видно то, что он должен закрывать.
  */
 @keyframes outcome-veil {
-  0%   { opacity: 0; }
-  12%  { opacity: 1; }
-  72%  { opacity: 1; }
+  0%   { opacity: 1; }
+  70%  { opacity: 1; }
   100% { opacity: 0; }
 }
 
@@ -403,12 +415,14 @@ body {
   animation: start-cue 1.6s ease-in-out forwards;
 }
 
+/* Три замаха за семь десятых секунды — темп счёта «раз-два-три», а не
+   медленное покачивание, которое приходилось пережидать каждый раунд. */
 .animate-shake-final {
-  animation: shake-final 0.95s cubic-bezier(0.4, 0, 0.3, 1) forwards;
+  animation: shake-final 0.72s cubic-bezier(0.45, 0, 0.55, 1) forwards;
 }
 
 .animate-collision {
-  animation: collision 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: collision 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .animate-outcome-veil {
